@@ -1,0 +1,41 @@
+# Call Agent MVP
+
+Minimal TypeScript service implementing a call-agent MVP with:
+- inbound telephony webhook handling
+- deterministic conversation state machine
+- safe tool layer with strict validation/allowlist
+- idempotent order creation
+- menu/store controls and events endpoint
+
+## Run locally
+
+```bash
+npm install
+npm run dev
+```
+
+Healthcheck:
+
+```bash
+curl http://localhost:3000/health
+```
+
+## Simulate a call
+
+```bash
+curl -X POST http://localhost:3000/api/telephony/inbound \
+  -H 'content-type: application/json' \
+  -d '{"call_id":"CA-local-1","store_id":"store-1","from":"+15551234567","utterance":"hello"}'
+```
+
+Repeat `utterance` values in sequence:
+`pickup order` → `<name>` → `<menu item>` → `done` → `yes`.
+
+## Checks
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```

@@ -1,0 +1,41 @@
+# Decisions
+
+## 2026-02-22 - Adopt Minimal-Core Agent Workflow Scaffold (ADR-0001)
+
+- Status: accepted
+- Context:
+  - The repository had a generic `AGENTS.md` template with TODO placeholders.
+  - We needed workflow modeling based on `CODEX-WORKFLOW-KIT copy.md`, but adapted pragmatically to current repo scope.
+- Decision:
+  - Adopt a minimal core workflow set now:
+    - `AGENTS.md` (repo-truth + gates + command hooks)
+    - `agents/README.md`, `agents/HANDOFF-CONTRACT.md`, `agents/orchestrator.md`, `agents/test-engineer.md`
+    - `prompts/*.md` workflow templates
+  - Defer optional specialist modules (`backend-api`, `ops-observability`, `payments-ledger`, `safety-moderation`) until scope expansion requires them.
+- Rationale:
+  - Keeps process overhead low for MVP while enforcing clear quality and safety gates.
+  - Matches current project footprint (single backend service with API + voice state machine + tests).
+- Consequences:
+  - Immediate consistency in planning/review/handoffs.
+  - Additional specialist roles may still be needed for future cross-cutting or security-heavy work.
+- Rollback:
+  - Revert workflow docs/files if they create friction; keep only `AGENTS.md` command hooks and core DoD/stop-and-ask sections.
+
+## 2026-02-22 - Keep MVP Runtime In-Memory Before Persistence/Realtimes (ADR-0002)
+
+- Status: accepted
+- Context:
+  - Product docs target a production architecture with Postgres, Redis, outbox worker, and WebSocket fanout.
+  - Current delivery goal is validating core call-to-order behavior quickly with low setup friction.
+- Decision:
+  - Keep runtime storage in `MemoryStore` for this phase.
+  - Implement only core API and telephony state-machine behavior needed for MVP flow simulation.
+  - Defer DB migrations, durable outbox, and realtime infrastructure to subsequent milestones.
+- Rationale:
+  - Enables rapid iteration on API contracts and voice interaction logic before infrastructure lock-in.
+  - Reduces operational complexity while behavior and requirements are still moving.
+- Consequences:
+  - Data is non-durable and process-local.
+  - No true multi-instance consistency, no resilient event delivery, and no production-grade replay behavior.
+- Rollback:
+  - Replace `MemoryStore` behind existing service interfaces with persistent adapters (Postgres + outbox + pub/sub) while preserving endpoint contracts.
