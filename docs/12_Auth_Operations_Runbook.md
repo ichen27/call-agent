@@ -9,6 +9,7 @@
 - `JWT_SECRET`: required in non-local environments
 - `INTERNAL_API_KEY`: protects `/api/internal/outbox*` when set
 - `TELEPHONY_WEBHOOK_TOKEN`: protects `/api/telephony/*` when set
+- `TELEPHONY_WEBHOOK_SECRET`: enforces HMAC signature checks on telephony webhooks
 
 Store all secrets in your secret manager, never in repo or `.env` committed files.
 
@@ -42,7 +43,7 @@ WHERE store_id = '<store-id>' AND email = '<user-email>';
 2. Deploy updated secrets to staging and verify:
    - `/api/auth/login` issues/validates JWTs
    - Internal outbox calls include `x-internal-api-key`
-   - Telephony webhooks include `x-telephony-token`
+   - Telephony webhooks include `x-telephony-token` and valid `x-telephony-signature`
 3. Roll to production with monitored canary.
 4. Invalidate old secrets after cutover window.
 
@@ -58,3 +59,4 @@ WHERE store_id = '<store-id>' AND email = '<user-email>';
 - [ ] `staff_users` contains only active intended users
 - [ ] `INTERNAL_API_KEY` set for production
 - [ ] `TELEPHONY_WEBHOOK_TOKEN` set for production
+- [ ] `TELEPHONY_WEBHOOK_SECRET` set for production

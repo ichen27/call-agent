@@ -1,4 +1,5 @@
 import express from 'express';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { OrderService } from './orderService.js';
 import type { OrderStatus, StoreMode } from './types.js';
@@ -43,7 +44,13 @@ export function createApp() {
   const voiceTools = new VoiceTools(db, orderService);
   const authService = new AuthService(db);
 
-  app.use(express.json());
+  app.use(
+    express.json({
+      verify: (req, _res, buf) => {
+        (req as express.Request).rawBody = buf.toString('utf8');
+      }
+    })
+  );
   app.use(authenticateRequest(authService));
 
   app.get('/health', (_req, res) => {
@@ -229,7 +236,7 @@ export function createApp() {
   }));
 
   app.post('/api/telephony/inbound', asyncRoute(async (req, res) => {
-    if (!allowServiceToken(req, res, process.env.TELEPHONY_WEBHOOK_TOKEN, 'x-telephony-token')) return;
+    if (!allowTelephonyAccess(req, res)) return;
     const parsed = z
       .object({
         call_id: z.string().min(1),
@@ -273,7 +280,7 @@ export function createApp() {
   }));
 
   app.post('/api/telephony/status', asyncRoute(async (req, res) => {
-    if (!allowServiceToken(req, res, process.env.TELEPHONY_WEBHOOK_TOKEN, 'x-telephony-token')) return;
+    if (!allowTelephonyAccess(req, res)) return;
     const parsed = z
       .object({
         call_id: z.string().min(1),
@@ -320,6 +327,34 @@ function allowServiceToken(
   const provided = req.header(headerName);
   if (provided !== configuredToken) {
     res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'invalid service token' } });
+    return false;
+  }
+
+  return true;
+}
+
+function allowTelephonyAccess(req: express.Request, res: express.Response): boolean {
+  if (!allowServiceToken(req, res, process.env.TELEPHONY_WEBHOOK_TOKEN, 'x-telephony-token')) {
+    return false;
+  }
+
+  const signatureSecret = process.env.TELEPHONY_WEBHOOK_SECRET;
+  if (!signatureSecret) {
+    return true;
+  }
+
+  const providedRaw = req.header('x-telephony-signature');
+  if (!providedRaw) {
+    res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'missing telephony signature' } });
+    return false;
+  }
+  const provided = providedRaw.startsWith('sha256=') ? providedRaw.slice('sha256='.length) : providedRaw;
+  const body = req.rawBody ?? '';
+  const expected = createHmac('sha256', signatureSecret).update(body).digest('hex');
+  const providedBuffer = Buffer.from(provided, 'hex');
+  const expectedBuffer = Buffer.from(expected, 'hex');
+  if (providedBuffer.length !== expectedBuffer.length || !timingSafeEqual(providedBuffer, expectedBuffer)) {
+    res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'invalid telephony signature' } });
     return false;
   }
 

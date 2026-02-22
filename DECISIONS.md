@@ -255,3 +255,20 @@
   - Future provider-native webhook signatures can layer on top of this control.
 - Rollback:
   - Unset service-token env vars to restore permissive behavior while preserving route functionality.
+
+## 2026-02-22 - Enforce HMAC Verification for Telephony Webhooks When Secret Configured (ADR-0015)
+
+- Status: accepted
+- Context:
+  - Shared tokens protect routes, but webhook authenticity should be verifiable from payload signatures.
+- Decision:
+  - Capture request raw body during JSON parsing.
+  - When `TELEPHONY_WEBHOOK_SECRET` is set, require `x-telephony-signature` and verify HMAC SHA-256.
+  - Reject missing/invalid signatures with `401`.
+- Rationale:
+  - Reduces spoofing risk and aligns with provider webhook security patterns.
+- Consequences:
+  - Signature must be computed over exact raw JSON body bytes.
+  - Provider-specific canonicalization/timestamp rules may require adaptation later.
+- Rollback:
+  - Unset `TELEPHONY_WEBHOOK_SECRET` to disable signature enforcement while keeping token guard if needed.

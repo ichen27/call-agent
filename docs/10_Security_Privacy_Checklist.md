@@ -18,7 +18,7 @@
   - user logins (optional)
 
 ## Webhook & Abuse Prevention
-- [ ] Verify telephony provider webhook signatures
+- [x] Verify telephony webhook signatures (`TELEPHONY_WEBHOOK_SECRET`)
 - [ ] Rate limit public endpoints
 - [ ] Input validation (schema-based)
 - [ ] Basic WAF / IP allowlist if feasible

@@ -34,8 +34,9 @@
   - Store-scoped token checks added for authenticated access to store/order event operations.
   - Optional service-token enforcement added for telephony and internal outbox routes.
   - Auth credential bootstrap/rotation runbook added (`docs/12_Auth_Operations_Runbook.md`).
+  - Telephony webhook HMAC signature verification added (`TELEPHONY_WEBHOOK_SECRET`).
 - Next:
-  - Add provider-native webhook signature verification in addition to shared token controls.
+  - Integrate provider-specific signature/timestamp canonicalization requirements (if different from current HMAC model).
 
 ---
 

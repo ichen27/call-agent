@@ -31,6 +31,7 @@
 - Outbox publisher webhook transport mode with timeout/auth configuration and dedicated publisher tests.
 - Optional service-token enforcement for telephony and internal outbox endpoints.
 - Auth operations runbook for credential/token bootstrap and rotation (`docs/12_Auth_Operations_Runbook.md`).
+- Telephony webhook HMAC signature enforcement (`TELEPHONY_WEBHOOK_SECRET`, `x-telephony-signature`).
 
 ### Changed
 

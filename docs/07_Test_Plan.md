@@ -36,6 +36,7 @@
   - login verifies PBKDF2 credential hashes from persistent user storage
   - authenticated token from store A gets 403 for store B resources
   - telephony/internal routes return 401 when service-token enforcement env vars are enabled
+  - telephony webhook signature validation rejects missing/invalid HMAC and accepts valid signed payload
 - Realtime:
   - publish OrderCreated → WS clients receive event
 - Reconnect catch-up:
