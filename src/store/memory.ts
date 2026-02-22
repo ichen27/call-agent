@@ -1,15 +1,5 @@
-import type { CallSession, MenuItem, Order, OrderEvent, OrderItemInput, OrderStatus, OutboxEvent, OutboxStatus, StoreMode } from '../types.js';
-
-interface CreateOrderInput {
-  storeId: string;
-  customerName: string;
-  customerPhone: string;
-  items: OrderItemInput[];
-  totalCents: number;
-  notes?: string;
-  callId?: string;
-  idempotencyKey: string;
-}
+import type { CallSession, MenuItem, Order, OrderEvent, OrderStatus, OutboxEvent, OutboxStatus, StoreMode } from '../types.js';
+import type { AppRepository, CreateOrderInput, OutboxPublishResult } from './repository.js';
 
 const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   NEW: ['ACCEPTED', 'REJECTED', 'CANCELED'],
@@ -21,7 +11,7 @@ const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   CANCELED: []
 };
 
-export class MemoryStore {
+export class MemoryStore implements AppRepository {
   private orderSeq = 1000;
   private eventSeq = 1;
   private outboxSeq = 1;
@@ -39,7 +29,7 @@ export class MemoryStore {
   readonly events: OrderEvent[] = [];
   readonly outboxEvents: OutboxEvent[] = [];
   readonly idempotency = new Map<string, string>();
-  readonly callSessions = new Map<string, CallSession>();
+  private readonly callSessions = new Map<string, CallSession>();
 
   getMenu(storeId: string): MenuItem[] {
     return [...this.menuItems.values()].filter((item) => item.storeId === storeId);
@@ -159,7 +149,7 @@ export class MemoryStore {
     });
   }
 
-  publishOutbox(storeId?: string, limit = 100): { publishedCount: number; events: OutboxEvent[] } {
+  publishOutbox(storeId?: string, limit = 100): OutboxPublishResult {
     const selected = this.outboxEvents
       .filter((event) => event.status === 'PENDING' && (!storeId || event.storeId === storeId))
       .slice(0, limit);
@@ -172,6 +162,14 @@ export class MemoryStore {
     }
 
     return { publishedCount: selected.length, events: selected };
+  }
+
+  getCallSession(callId: string): CallSession | undefined {
+    return this.callSessions.get(callId);
+  }
+
+  setCallSession(session: CallSession): void {
+    this.callSessions.set(session.callId, session);
   }
 
   private appendEvent(storeId: string, orderId: string, eventType: string, payload: Record<string, unknown>): void {

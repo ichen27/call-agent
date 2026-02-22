@@ -58,3 +58,22 @@
   - Internal endpoints are not production-safe and must be protected or removed in hardened environments.
 - Rollback:
   - Remove internal endpoints and route publication through dedicated worker once persistent outbox storage is in place.
+
+## 2026-02-22 - Introduce Repository Interface Before Database Cutover (ADR-0004)
+
+- Status: accepted
+- Context:
+  - Core services and voice tools were directly typed against `MemoryStore`.
+  - Upcoming Postgres implementation requires a drop-in replacement without widespread behavioral rewrites.
+- Decision:
+  - Introduce `AppRepository` as the storage contract for API/service/tool operations.
+  - Keep `MemoryStore` as one implementation of this interface.
+  - Refactor service/tool wiring to depend on the interface instead of concrete store type.
+- Rationale:
+  - Lowers migration risk by decoupling business logic from storage implementation.
+  - Enables incremental cutover and parallel test coverage for memory and Postgres adapters.
+- Consequences:
+  - Slightly broader type surface to maintain.
+  - Clearer boundaries for persistence and worker phases.
+- Rollback:
+  - Revert to direct `MemoryStore` coupling if adapter strategy proves unnecessary.

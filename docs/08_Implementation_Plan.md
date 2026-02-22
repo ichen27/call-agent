@@ -95,6 +95,26 @@
 
 ---
 
+## Milestone 7 — Persistence Adapter Cutover
+- Introduce repository interfaces for storage operations used by API + voice flows
+- Implement Postgres-backed repository behind the same interfaces
+- Add migrations and seed/bootstrap scripts
+- Preserve API contracts while switching runtime storage from in-memory to Postgres
+
+**Dependencies:** DB provisioning + migration strategy.
+
+---
+
+## Milestone 8 — Outbox Worker + Delivery Reliability
+- Run dedicated outbox worker process
+- Poll pending outbox events and publish to transport layer
+- Mark sent/failed with retry/backoff metadata
+- Add failure visibility and operational controls for backlog management
+
+**Dependencies:** persistent outbox table + event transport (Redis/queue).
+
+---
+
 ## Task Breakdown (suggested)
 - Backend: Order Service + Menu/Store Service + Auth
 - Infra: DB/Redis + deploy + certs

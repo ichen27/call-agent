@@ -17,6 +17,7 @@
 ### Changed
 
 - `AGENTS.md` now reflects repository truth, command hooks, task modes, and stop-and-ask gates for this codebase.
+- Storage usage in services is now interface-driven (`AppRepository`) instead of hard-coupled to `MemoryStore`, enabling cleaner Postgres cutover.
 
 ### Fixed
 

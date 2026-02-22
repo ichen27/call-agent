@@ -195,7 +195,7 @@ export function createApp() {
 
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-    const existing = db.callSessions.get(parsed.data.call_id);
+    const existing = db.getCallSession(parsed.data.call_id);
     const session =
       existing ??
       ({
@@ -208,7 +208,7 @@ export function createApp() {
       } as const);
     const mutableSession = existing ?? { ...session };
     const step = handleCallerUtterance(mutableSession, parsed.data.utterance, voiceTools);
-    db.callSessions.set(step.session.callId, step.session);
+    db.setCallSession(step.session);
 
     safeLog('info', 'telephony inbound processed', {
       call_id: step.session.callId,
@@ -234,10 +234,10 @@ export function createApp() {
       })
       .safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-    const session = db.callSessions.get(parsed.data.call_id);
+    const session = db.getCallSession(parsed.data.call_id);
     if (session) {
       session.endedAt = new Date().toISOString();
-      db.callSessions.set(session.callId, session);
+      db.setCallSession(session);
     }
     res.json({ ok: true });
   });

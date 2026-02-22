@@ -1,5 +1,5 @@
 import type { OrderItemInput, OrderStatus } from './types.js';
-import type { MemoryStore } from './store/memory.js';
+import type { AppRepository } from './store/repository.js';
 
 export interface CreateOrderCommand {
   storeId: string;
@@ -13,7 +13,7 @@ export interface CreateOrderCommand {
 }
 
 export class OrderService {
-  constructor(private readonly db: MemoryStore) {}
+  constructor(private readonly db: AppRepository) {}
 
   createOrder(command: CreateOrderCommand) {
     return this.db.createOrder(command);

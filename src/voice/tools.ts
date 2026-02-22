@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { OrderItemInput } from '../types.js';
-import type { MemoryStore } from '../store/memory.js';
+import type { AppRepository } from '../store/repository.js';
 import type { OrderService } from '../orderService.js';
 
 const createOrderArgs = z.object({
@@ -27,7 +27,7 @@ export class VoiceTools {
   private readonly allowed = new Set<ToolName>(['get_store_mode', 'validate_item', 'create_order', 'handoff']);
 
   constructor(
-    private readonly db: MemoryStore,
+    private readonly db: AppRepository,
     private readonly orderService: OrderService
   ) {}
 
