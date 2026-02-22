@@ -7,8 +7,10 @@
 - Idempotency: `Idempotency-Key` header on `POST /orders`
 - Errors: `{ "error": { "code": "...", "message": "...", "details": ... } }`
 - Runtime auth mode:
-  - `AUTH_REQUIRED=false` (default): missing bearer token allowed on protected routes for local/dev compatibility.
-  - `AUTH_REQUIRED=true`: protected routes enforce bearer token + role.
+  - If `AUTH_REQUIRED` is set, it is the source of truth.
+  - If `AUTH_REQUIRED` is unset:
+    - `NODE_ENV=development|test`: missing bearer token allowed on protected routes.
+    - Other environments: protected routes enforce bearer token + role by default.
 
 ### GET `/health`
 **Response**

@@ -174,11 +174,12 @@
 - Decision:
   - Add JWT login/me endpoints and request auth middleware.
   - Add route-level RBAC guards (`STAFF`, `MANAGER`) for protected operations.
-  - Make hard enforcement configurable with `AUTH_REQUIRED` (default false for local compatibility).
+  - Make hard enforcement configurable with `AUTH_REQUIRED`.
+  - If `AUTH_REQUIRED` is unset, default to permissive in `development/test` and enforced in non-local environments.
 - Rationale:
   - Establishes production auth path now while allowing incremental rollout and test continuity.
 - Consequences:
-  - Security posture depends on environment configuration until enforced by default outside local.
+  - Local/test flow remains low-friction while non-local environments are secure by default.
   - Follow-up needed for persistent users + hardened credential storage.
 - Rollback:
   - Keep middleware loaded but disable enforcement (`AUTH_REQUIRED=false`) while fixing auth regressions.

@@ -28,9 +28,11 @@
 - Done:
   - Async API error middleware/wrapping added.
   - JWT login/me endpoints and role-based route guard middleware added (staff/manager).
+  - Route-level auth integration tests added for required auth (`401`), role rejection (`403`), and optional auth mode.
+  - Auth defaults hardened: non-local environments enforce auth by default unless explicitly disabled.
 - Next:
   - Persisted staff user storage and secure password hashing workflow.
-  - Enforce `AUTH_REQUIRED=true` in non-local environments and add route-level integration tests.
+  - Expand auth integration coverage to include telephony/internal endpoint policy and store-to-token scoping checks.
 
 ---
 

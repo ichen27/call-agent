@@ -34,8 +34,10 @@ Repeat `utterance` values in sequence:
 
 ## Auth (current)
 
-- Default local mode: `AUTH_REQUIRED=false` (protected routes still run without token).
-- Enforced mode: set `AUTH_REQUIRED=true` and `JWT_SECRET`.
+- Default mode:
+  - `NODE_ENV=development|test` -> auth is optional unless `AUTH_REQUIRED=true`.
+  - other environments -> auth enforcement is enabled unless `AUTH_REQUIRED=false`.
+- Set `JWT_SECRET` in all non-local environments.
 
 Quick login example:
 

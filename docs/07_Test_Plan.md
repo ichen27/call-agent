@@ -29,6 +29,9 @@
 - Transaction + outbox:
   - create order → outbox row exists in same commit
   - worker publishes and marks SENT
+- Auth/RBAC:
+  - protected route without bearer token returns 401 when auth enforcement enabled
+  - STAFF token can access staff routes but receives 403 for manager-only routes
 - Realtime:
   - publish OrderCreated → WS clients receive event
 - Reconnect catch-up:

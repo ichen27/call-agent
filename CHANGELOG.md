@@ -24,6 +24,7 @@
 - Follow-up migration (`migrations/0002_outbox_backoff.sql`) to add `next_attempt_at` scheduling field for existing databases.
 - JWT auth service + middleware (`/api/auth/login`, `/api/auth/me`) with role-aware route protection scaffolding.
 - Auth service tests (`tests/authService.test.ts`).
+- Route-level auth integration tests (`tests/authRoutes.test.ts`) for `401`/`403`/optional-auth behavior.
 
 ### Changed
 
@@ -36,6 +37,7 @@
 - API routing now uses centralized async error capture and shared error middleware for safer async failure handling.
 - Outbox storage/worker flow now supports `DEAD_LETTER` status and due-time filtering (`next_attempt_at`) for retry control.
 - Protected order/mode/menu routes now support RBAC enforcement (`STAFF`/`MANAGER`) with configurable `AUTH_REQUIRED` mode.
+- Auth enforcement defaults are now environment-aware: required outside local/test unless explicitly overridden.
 
 ### Fixed
 

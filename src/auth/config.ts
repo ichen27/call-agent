@@ -18,7 +18,16 @@ const DEFAULT_USERS: AuthUser[] = [
 ];
 
 export function isAuthRequired(): boolean {
-  return (process.env.AUTH_REQUIRED ?? 'false').toLowerCase() === 'true';
+  const configured = process.env.AUTH_REQUIRED;
+  if (configured !== undefined) {
+    return configured.toLowerCase() === 'true';
+  }
+
+  const env = (process.env.NODE_ENV ?? 'development').toLowerCase();
+  if (env === 'development' || env === 'test') {
+    return false;
+  }
+  return true;
 }
 
 export function jwtSecret(): string {
