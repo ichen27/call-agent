@@ -32,6 +32,7 @@
 - Auth/RBAC:
   - protected route without bearer token returns 401 when auth enforcement enabled
   - STAFF token can access staff routes but receives 403 for manager-only routes
+  - login verifies PBKDF2 credential hashes from persistent user storage
 - Realtime:
   - publish OrderCreated → WS clients receive event
 - Reconnect catch-up:

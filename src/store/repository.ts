@@ -1,4 +1,5 @@
 import type { CallSession, MenuItem, Order, OrderEvent, OrderItemInput, OrderStatus, OutboxEvent, OutboxStatus, StoreMode } from '../types.js';
+import type { AuthCredentialRecord } from '../auth/types.js';
 
 export interface CreateOrderInput {
   storeId: string;
@@ -37,6 +38,7 @@ export interface AppRepository {
   markOutboxFailed(eventId: number, nextAttemptAt: string): Promise<OutboxEvent | undefined>;
   markOutboxDeadLetter(eventId: number): Promise<OutboxEvent | undefined>;
 
+  getAuthUserByEmail(storeId: string, email: string): Promise<AuthCredentialRecord | undefined>;
   getCallSession(callId: string): Promise<CallSession | undefined>;
   setCallSession(session: CallSession): Promise<void>;
 }

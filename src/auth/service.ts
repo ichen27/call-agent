@@ -1,7 +1,9 @@
 import jwt from 'jsonwebtoken';
 import type { SignOptions } from 'jsonwebtoken';
-import { configuredUsers, jwtExpiresIn, jwtSecret } from './config.js';
-import type { AuthContext, AuthUser } from './types.js';
+import { jwtExpiresIn, jwtSecret } from './config.js';
+import { verifyPassword } from './password.js';
+import type { AppRepository } from '../store/repository.js';
+import type { AuthContext } from './types.js';
 
 interface TokenClaims {
   sub: string;
@@ -11,16 +13,13 @@ interface TokenClaims {
 }
 
 export class AuthService {
-  private readonly users: AuthUser[];
+  constructor(private readonly repository: Pick<AppRepository, 'getAuthUserByEmail'>) {}
 
-  constructor() {
-    this.users = configuredUsers();
-  }
-
-  login(storeId: string, email: string, password: string): { token: string; user: AuthContext } | undefined {
-    const matched = this.users.find((user) => user.storeId === storeId && user.email.toLowerCase() === email.toLowerCase());
+  async login(storeId: string, email: string, password: string): Promise<{ token: string; user: AuthContext } | undefined> {
+    const matched = await this.repository.getAuthUserByEmail(storeId, email.toLowerCase());
     if (!matched) return undefined;
-    if (matched.password !== password) return undefined;
+    if (!matched.active) return undefined;
+    if (!verifyPassword(password, matched.passwordHash)) return undefined;
 
     const user: AuthContext = {
       userId: matched.userId,

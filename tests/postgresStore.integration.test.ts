@@ -127,4 +127,12 @@ describeIfDb('PostgresStore integration', () => {
     expect(sent?.status).toBe('SENT');
     expect(sent?.sentAt).toBeDefined();
   });
+
+  it('loads auth users from persistent staff_users storage', async () => {
+    const manager = await store.getAuthUserByEmail('store-1', 'manager@store.test');
+    expect(manager).toBeDefined();
+    expect(manager?.role).toBe('MANAGER');
+    expect(manager?.active).toBe(true);
+    expect(manager?.passwordHash).toContain('pbkdf2_sha256$');
+  });
 });

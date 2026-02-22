@@ -1,19 +1,24 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { hashPassword } from '../src/auth/password.js';
 import { AuthService } from '../src/auth/service.js';
 
-const backup = { ...process.env };
-
-afterEach(() => {
-  process.env = { ...backup };
-});
-
 describe('auth service', () => {
-  it('logs in seeded user and verifies token', () => {
-    delete process.env.AUTH_USERS_JSON;
+  it('logs in configured user record and verifies token', async () => {
     process.env.JWT_SECRET = 'test-secret';
 
-    const auth = new AuthService();
-    const result = auth.login('store-1', 'manager@store.test', 'password123');
+    const auth = new AuthService({
+      async getAuthUserByEmail() {
+        return {
+          userId: 'manager-1',
+          storeId: 'store-1',
+          email: 'manager@store.test',
+          role: 'MANAGER',
+          passwordHash: hashPassword('password123', 'fixedsalt'),
+          active: true
+        };
+      }
+    });
+    const result = await auth.login('store-1', 'manager@store.test', 'password123');
     expect(result).toBeDefined();
     if (!result) {
       throw new Error('expected login result');
@@ -24,10 +29,37 @@ describe('auth service', () => {
     expect(verified?.role).toBe('MANAGER');
   });
 
-  it('rejects invalid credentials', () => {
-    delete process.env.AUTH_USERS_JSON;
-    const auth = new AuthService();
-    const result = auth.login('store-1', 'manager@store.test', 'wrong');
+  it('rejects invalid credentials', async () => {
+    const auth = new AuthService({
+      async getAuthUserByEmail() {
+        return {
+          userId: 'manager-1',
+          storeId: 'store-1',
+          email: 'manager@store.test',
+          role: 'MANAGER',
+          passwordHash: hashPassword('password123', 'fixedsalt'),
+          active: true
+        };
+      }
+    });
+    const result = await auth.login('store-1', 'manager@store.test', 'wrong');
+    expect(result).toBeUndefined();
+  });
+
+  it('rejects inactive user', async () => {
+    const auth = new AuthService({
+      async getAuthUserByEmail() {
+        return {
+          userId: 'staff-1',
+          storeId: 'store-1',
+          email: 'staff@store.test',
+          role: 'STAFF',
+          passwordHash: hashPassword('password123', 'fixedsalt'),
+          active: false
+        };
+      }
+    });
+    const result = await auth.login('store-1', 'staff@store.test', 'password123');
     expect(result).toBeUndefined();
   });
 });

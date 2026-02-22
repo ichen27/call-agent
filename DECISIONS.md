@@ -183,3 +183,22 @@
   - Follow-up needed for persistent users + hardened credential storage.
 - Rollback:
   - Keep middleware loaded but disable enforcement (`AUTH_REQUIRED=false`) while fixing auth regressions.
+
+## 2026-02-22 - Persist Staff Credentials and Standardize PBKDF2 Password Verification (ADR-0011)
+
+- Status: accepted
+- Context:
+  - Auth middleware and JWT issuance existed, but user credentials were still seeded from in-memory plaintext.
+  - The implementation plan requires persistent staff-user storage with secure password handling.
+- Decision:
+  - Add `staff_users` table migration with store-scoped unique emails and `password_hash` storage.
+  - Add repository-level `getAuthUserByEmail` contract used by `AuthService.login`.
+  - Standardize password format on `pbkdf2_sha256$iterations$salt$digest` and verify with timing-safe comparison.
+- Rationale:
+  - Moves credential source of truth into persistent storage in postgres mode.
+  - Removes plaintext password matching from runtime auth flow.
+- Consequences:
+  - Bootstrap/rotation process must now manage PBKDF2 password hashes.
+  - Local memory mode still supports configured users, but normalized into hashed form at startup.
+- Rollback:
+  - Revert login lookup to config-seeded users while preserving JWT/RBAC route guards.

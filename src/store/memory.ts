@@ -1,5 +1,7 @@
 import type { CallSession, MenuItem, Order, OrderEvent, OrderStatus, OutboxEvent, OutboxStatus, StoreMode } from '../types.js';
 import type { AppRepository, CreateOrderInput, OutboxPublishResult } from './repository.js';
+import { configuredUsers } from '../auth/config.js';
+import type { AuthCredentialRecord } from '../auth/types.js';
 
 const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   NEW: ['ACCEPTED', 'REJECTED', 'CANCELED'],
@@ -30,6 +32,9 @@ export class MemoryStore implements AppRepository {
   readonly outboxEvents: OutboxEvent[] = [];
   readonly idempotency = new Map<string, string>();
   private readonly callSessions = new Map<string, CallSession>();
+  private readonly authUsers = new Map<string, AuthCredentialRecord>(
+    configuredUsers().map((user) => [`${user.storeId}:${user.email.toLowerCase()}`, user])
+  );
 
   async getMenu(storeId: string): Promise<MenuItem[]> {
     return [...this.menuItems.values()].filter((item) => item.storeId === storeId);
@@ -208,6 +213,10 @@ export class MemoryStore implements AppRepository {
 
   async getCallSession(callId: string): Promise<CallSession | undefined> {
     return this.callSessions.get(callId);
+  }
+
+  async getAuthUserByEmail(storeId: string, email: string): Promise<AuthCredentialRecord | undefined> {
+    return this.authUsers.get(`${storeId}:${email.toLowerCase()}`);
   }
 
   async setCallSession(session: CallSession): Promise<void> {

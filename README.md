@@ -47,6 +47,20 @@ curl -X POST http://localhost:3000/api/auth/login \
   -d '{"store_id":"store-1","email":"manager@store.test","password":"password123"}'
 ```
 
+Auth user config (`AUTH_USERS_JSON`) accepts either `passwordHash` (preferred) or `password` (hashed at boot):
+
+```json
+[
+  {
+    "userId": "manager-1",
+    "storeId": "store-1",
+    "email": "manager@store.test",
+    "role": "MANAGER",
+    "passwordHash": "pbkdf2_sha256$100000$..."
+  }
+]
+```
+
 ## Checks
 
 ```bash

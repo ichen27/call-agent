@@ -23,6 +23,9 @@
 ## Auth
 
 ### POST `/api/auth/login`
+Notes:
+- Credentials are validated against persistent staff user records (`staff_users` in postgres mode).
+
 **Request**
 ```json
 { "store_id": "uuid", "email": "user@restaurant.com", "password": "..." }

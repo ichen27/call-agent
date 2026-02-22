@@ -25,6 +25,8 @@
 - JWT auth service + middleware (`/api/auth/login`, `/api/auth/me`) with role-aware route protection scaffolding.
 - Auth service tests (`tests/authService.test.ts`).
 - Route-level auth integration tests (`tests/authRoutes.test.ts`) for `401`/`403`/optional-auth behavior.
+- Password hashing utility/tests (`src/auth/password.ts`, `tests/password.test.ts`) with PBKDF2 verification.
+- Staff user auth migration (`migrations/0003_staff_users_auth.sql`) for persistent credential storage.
 
 ### Changed
 
@@ -38,6 +40,7 @@
 - Outbox storage/worker flow now supports `DEAD_LETTER` status and due-time filtering (`next_attempt_at`) for retry control.
 - Protected order/mode/menu routes now support RBAC enforcement (`STAFF`/`MANAGER`) with configurable `AUTH_REQUIRED` mode.
 - Auth enforcement defaults are now environment-aware: required outside local/test unless explicitly overridden.
+- Auth login flow now resolves users from repository storage (`staff_users` in Postgres) instead of in-memory plaintext credentials.
 
 ### Fixed
 

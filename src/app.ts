@@ -41,7 +41,7 @@ export function createApp() {
   const { repository: db, backend } = createRepository();
   const orderService = new OrderService(db);
   const voiceTools = new VoiceTools(db, orderService);
-  const authService = new AuthService();
+  const authService = new AuthService(db);
 
   app.use(express.json());
   app.use(authenticateRequest(authService));
@@ -60,7 +60,7 @@ export function createApp() {
       .safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-    const loggedIn = authService.login(parsed.data.store_id, parsed.data.email, parsed.data.password);
+    const loggedIn = await authService.login(parsed.data.store_id, parsed.data.email, parsed.data.password);
     if (!loggedIn) {
       return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'invalid credentials' } });
     }

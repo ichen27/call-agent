@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import type { CallSession, MenuItem, Order, OrderEvent, OrderItemInput, OrderStatus, OutboxEvent, OutboxStatus, StoreMode } from '../types.js';
 import type { AppRepository, CreateOrderInput, OutboxPublishResult } from './repository.js';
+import type { AuthCredentialRecord } from '../auth/types.js';
 
 const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   NEW: ['ACCEPTED', 'REJECTED', 'CANCELED'],
@@ -35,6 +36,15 @@ interface OrderItemRow extends QueryResultRow {
   modifiers_snapshot_json: Array<Record<string, string | number>>;
   special_instructions: string | null;
   line_total_cents: number;
+}
+
+interface StaffUserRow extends QueryResultRow {
+  id: string;
+  store_id: string;
+  email: string;
+  role: 'STAFF' | 'MANAGER';
+  password_hash: string;
+  is_active: boolean;
 }
 
 export class PostgresStore implements AppRepository {
@@ -235,6 +245,25 @@ export class PostgresStore implements AppRepository {
 
   getCallSession(callId: string): Promise<CallSession | undefined> {
     return this.getCallSessionAsync(callId);
+  }
+
+  async getAuthUserByEmail(storeId: string, email: string): Promise<AuthCredentialRecord | undefined> {
+    const result = await this.pool.query<StaffUserRow>(
+      `SELECT id, store_id, email, role, password_hash, is_active
+       FROM staff_users
+       WHERE store_id = $1 AND lower(email) = lower($2)`,
+      [storeId, email]
+    );
+    const row = result.rows[0];
+    if (!row) return undefined;
+    return {
+      userId: row.id,
+      storeId: row.store_id,
+      email: row.email,
+      role: row.role,
+      passwordHash: row.password_hash,
+      active: row.is_active
+    };
   }
 
   setCallSession(session: CallSession): Promise<void> {
