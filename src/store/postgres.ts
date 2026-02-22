@@ -44,67 +44,115 @@ export class PostgresStore implements AppRepository {
     return this.pool.query('SELECT 1');
   }
 
-  getMenu(_storeId: string): MenuItem[] {
-    throw new Error('Use async methods not supported by sync app path yet');
+  async getMenu(storeId: string): Promise<MenuItem[]> {
+    const result = await this.pool.query(
+      `SELECT id, store_id, name, base_price_cents, is_available
+       FROM menu_items
+       WHERE store_id = $1`,
+      [storeId]
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      storeId: String(row.store_id),
+      name: String(row.name),
+      basePriceCents: Number(row.base_price_cents),
+      isAvailable: Boolean(row.is_available)
+    }));
   }
 
-  setItemAvailability(_itemId: string, _isAvailable: boolean): MenuItem | undefined {
-    throw new Error('Use async methods not supported by sync app path yet');
+  async setItemAvailability(itemId: string, isAvailable: boolean): Promise<MenuItem | undefined> {
+    const result = await this.pool.query(
+      `UPDATE menu_items
+       SET is_available = $1
+       WHERE id = $2
+       RETURNING id, store_id, name, base_price_cents, is_available`,
+      [isAvailable, itemId]
+    );
+    const row = result.rows[0];
+    if (!row) return undefined;
+    return {
+      id: String(row.id),
+      storeId: String(row.store_id),
+      name: String(row.name),
+      basePriceCents: Number(row.base_price_cents),
+      isAvailable: Boolean(row.is_available)
+    };
   }
 
-  setStoreMode(_storeId: string, _mode: StoreMode): StoreMode | undefined {
-    throw new Error('Use async methods not supported by sync app path yet');
+  async setStoreMode(storeId: string, mode: StoreMode): Promise<StoreMode | undefined> {
+    const result = await this.pool.query('UPDATE stores SET mode = $1 WHERE id = $2 RETURNING mode', [mode, storeId]);
+    const row = result.rows[0];
+    return row ? (row.mode as StoreMode) : undefined;
   }
 
-  getStoreMode(_storeId: string): StoreMode {
-    throw new Error('Use async methods not supported by sync app path yet');
+  async getStoreMode(storeId: string): Promise<StoreMode> {
+    const result = await this.pool.query('SELECT mode FROM stores WHERE id = $1', [storeId]);
+    const row = result.rows[0];
+    return row ? (row.mode as StoreMode) : 'CLOSED';
   }
 
-  createOrder(_input: CreateOrderInput): Order {
-    throw new Error('Use async methods not supported by sync app path yet');
+  createOrder(input: CreateOrderInput): Promise<Order> {
+    return this.createOrderAsync(input);
   }
 
-  listOrders(_storeId: string, _statuses?: OrderStatus[]): Order[] {
-    throw new Error('Use async methods not supported by sync app path yet');
+  async listOrders(storeId: string, statuses?: OrderStatus[]): Promise<Order[]> {
+    const values: unknown[] = [storeId];
+    let where = 'WHERE store_id = $1';
+    if (statuses && statuses.length > 0) {
+      values.push(statuses);
+      where += ` AND status = ANY($${values.length}::text[])`;
+    }
+
+    const result = await this.pool.query<OrderRow>(`SELECT * FROM orders ${where} ORDER BY order_number DESC`, values);
+    const orders: Order[] = [];
+    for (const row of result.rows) {
+      const items = await this.getOrderItemsAsync(row.id);
+      const events = await this.getEventsForOrderAsync(row.id);
+      const ackedClientIds = events
+        .filter((event) => event.eventType === 'OrderAcked')
+        .map((event) => event.payload.clientId)
+        .filter((value): value is string => typeof value === 'string');
+      orders.push(this.toOrder(row, items, ackedClientIds));
+    }
+    return orders;
   }
 
-  getOrderById(_orderId: string): Order | undefined {
-    throw new Error('Use async methods not supported by sync app path yet');
+  getOrderById(orderId: string): Promise<Order | undefined> {
+    return this.getOrderByIdAsync(orderId);
   }
 
-  getEventsForOrder(_orderId: string): OrderEvent[] {
-    throw new Error('Use async methods not supported by sync app path yet');
+  getEventsForOrder(orderId: string): Promise<OrderEvent[]> {
+    return this.getEventsForOrderAsync(orderId);
   }
 
-  updateOrderStatus(_orderId: string, _nextStatus: OrderStatus, _actorId: string): Order {
-    throw new Error('Use async methods not supported by sync app path yet');
+  updateOrderStatus(orderId: string, nextStatus: OrderStatus, actorId: string): Promise<Order> {
+    return this.updateOrderStatusAsync(orderId, nextStatus, actorId);
   }
 
-  ackOrder(_orderId: string, _clientId: string): boolean {
-    throw new Error('Use async methods not supported by sync app path yet');
+  ackOrder(orderId: string, clientId: string): Promise<boolean> {
+    return this.ackOrderAsync(orderId, clientId);
   }
 
-  getEventsSince(_storeId: string, _sinceId: number): OrderEvent[] {
-    throw new Error('Use async methods not supported by sync app path yet');
+  getEventsSince(storeId: string, sinceId: number): Promise<OrderEvent[]> {
+    return this.getEventsSinceAsync(storeId, sinceId);
   }
 
-  listOutbox(_storeId?: string, _status?: OutboxStatus): OutboxEvent[] {
-    throw new Error('Use async methods not supported by sync app path yet');
+  listOutbox(storeId?: string, status?: OutboxStatus): Promise<OutboxEvent[]> {
+    return this.listOutboxAsync(storeId, status);
   }
 
-  publishOutbox(_storeId?: string, _limit?: number): OutboxPublishResult {
-    throw new Error('Use async methods not supported by sync app path yet');
+  publishOutbox(storeId?: string, limit?: number): Promise<OutboxPublishResult> {
+    return this.publishOutboxAsync(storeId, limit);
   }
 
-  getCallSession(_callId: string): CallSession | undefined {
-    throw new Error('Use async methods not supported by sync app path yet');
+  getCallSession(callId: string): Promise<CallSession | undefined> {
+    return this.getCallSessionAsync(callId);
   }
 
-  setCallSession(_session: CallSession): void {
-    throw new Error('Use async methods not supported by sync app path yet');
+  setCallSession(session: CallSession): Promise<void> {
+    return this.upsertCallSessionAsync(session);
   }
 
-  // Async API to be wired in Phase 2 app async cutover
   async createOrderAsync(input: CreateOrderInput): Promise<Order> {
     const client = await this.pool.connect();
     try {

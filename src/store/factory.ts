@@ -11,9 +11,7 @@ export function createRepository(): { repository: AppRepository; backend: 'memor
     if (!config.databaseUrl) {
       throw new Error('STORE_BACKEND=postgres requires DATABASE_URL');
     }
-
-    // Current Express app is synchronous; async Postgres adapter is prepared for worker and next cutover phase.
-    throw new Error('Postgres backend requires async app cutover. Use STORE_BACKEND=memory for HTTP app in this phase.');
+    return { repository: createPostgresStore(), backend: 'postgres' };
   }
 
   return { repository: new MemoryStore(), backend: 'memory' };

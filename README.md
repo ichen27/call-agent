@@ -41,9 +41,9 @@ npm test
 npm run build
 ```
 
-## Persistence scaffolding (phase in progress)
+## Persistence modes
 
-Memory backend remains the default HTTP runtime:
+Memory backend remains default for local quickstart:
 
 ```bash
 STORE_BACKEND=memory npm run dev
@@ -56,6 +56,8 @@ STORE_BACKEND=postgres DATABASE_URL=postgres://<user>:<pass>@<host>:5432/<db> np
 STORE_BACKEND=postgres DATABASE_URL=postgres://<user>:<pass>@<host>:5432/<db> npm run worker:outbox
 ```
 
-Current limitation:
-- The Express app path is still synchronous and uses memory mode by default.
-- `PostgresStore` async methods are implemented and ready for the next app async cutover phase.
+You can run HTTP API on postgres backend by setting:
+
+```bash
+STORE_BACKEND=postgres DATABASE_URL=postgres://<user>:<pass>@<host>:5432/<db> npm run dev
+```

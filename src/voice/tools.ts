@@ -31,21 +31,20 @@ export class VoiceTools {
     private readonly orderService: OrderService
   ) {}
 
-  execute(action: ToolName, rawArgs: unknown): ToolResult {
+  async execute(action: ToolName, rawArgs: unknown): Promise<ToolResult> {
     if (!this.allowed.has(action)) {
       throw new Error(`tool action not allowed: ${action}`);
     }
 
     if (action === 'get_store_mode') {
       const args = storeModeArgs.parse(rawArgs);
-      return { type: 'mode', mode: this.db.getStoreMode(args.storeId) };
+      return { type: 'mode', mode: await this.db.getStoreMode(args.storeId) };
     }
 
     if (action === 'validate_item') {
       const args = validateItemArgs.parse(rawArgs);
       const normalized = args.query.toLowerCase();
-      const matches = this.db
-        .getMenu(args.storeId)
+      const matches = (await this.db.getMenu(args.storeId))
         .filter((item) => item.isAvailable && item.name.toLowerCase().includes(normalized))
         .map((item) => ({ id: item.id, name: item.name, price: item.basePriceCents }));
       return { type: 'matches', matches };
@@ -53,7 +52,7 @@ export class VoiceTools {
 
     if (action === 'create_order') {
       const args = createOrderArgs.parse(rawArgs);
-      const menu = this.db.getMenu(args.storeId);
+      const menu = await this.db.getMenu(args.storeId);
       const items: OrderItemInput[] = args.items.map((draft) => {
         const item = menu.find((entry) => entry.id === draft.itemId);
         if (!item || !item.isAvailable) {
@@ -71,7 +70,7 @@ export class VoiceTools {
       });
 
       const total = items.reduce((sum, item) => sum + item.lineTotalCents, 0);
-      const order = this.orderService.createOrder({
+      const order = await this.orderService.createOrder({
         idempotencyKey: args.callId,
         storeId: args.storeId,
         customerName: args.customerName,

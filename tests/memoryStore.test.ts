@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { MemoryStore } from '../src/store/memory.js';
 
 describe('memory store outbox and order detail behavior', () => {
-  it('creates outbox records for order lifecycle events', () => {
+  it('creates outbox records for order lifecycle events', async () => {
     const store = new MemoryStore();
 
-    const created = store.createOrder({
+    const created = await store.createOrder({
       storeId: 'store-1',
       idempotencyKey: 'idem-1',
       customerName: 'Taylor',
@@ -23,20 +23,20 @@ describe('memory store outbox and order detail behavior', () => {
       totalCents: 1299
     });
 
-    store.updateOrderStatus(created.id, 'ACCEPTED', 'staff-1');
-    store.ackOrder(created.id, 'tablet-1');
+    await store.updateOrderStatus(created.id, 'ACCEPTED', 'staff-1');
+    await store.ackOrder(created.id, 'tablet-1');
 
-    const orderEvents = store.getEventsForOrder(created.id);
+    const orderEvents = await store.getEventsForOrder(created.id);
     expect(orderEvents.map((event) => event.eventType)).toEqual(['OrderCreated', 'OrderStatusChanged', 'OrderAcked']);
 
-    const outbox = store.listOutbox('store-1', 'PENDING');
+    const outbox = await store.listOutbox('store-1', 'PENDING');
     expect(outbox).toHaveLength(3);
     expect(outbox.every((event) => event.aggregateId === created.id)).toBe(true);
   });
 
-  it('marks selected outbox events as sent', () => {
+  it('marks selected outbox events as sent', async () => {
     const store = new MemoryStore();
-    const first = store.createOrder({
+    const first = await store.createOrder({
       storeId: 'store-1',
       idempotencyKey: 'idem-2',
       customerName: 'Alex',
@@ -54,13 +54,13 @@ describe('memory store outbox and order detail behavior', () => {
       totalCents: 1199
     });
 
-    store.updateOrderStatus(first.id, 'ACCEPTED', 'staff-1');
+    await store.updateOrderStatus(first.id, 'ACCEPTED', 'staff-1');
 
-    const publish = store.publishOutbox('store-1', 1);
+    const publish = await store.publishOutbox('store-1', 1);
     expect(publish.publishedCount).toBe(1);
 
-    const sent = store.listOutbox('store-1', 'SENT');
-    const pending = store.listOutbox('store-1', 'PENDING');
+    const sent = await store.listOutbox('store-1', 'SENT');
+    const pending = await store.listOutbox('store-1', 'PENDING');
     expect(sent).toHaveLength(1);
     expect(pending.length).toBeGreaterThan(0);
   });

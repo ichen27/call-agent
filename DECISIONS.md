@@ -96,3 +96,20 @@
   - Additional follow-up needed for complete runtime cutover.
 - Rollback:
   - Remove postgres scaffolding and revert to memory-only workflow if deployment constraints change.
+
+## 2026-02-22 - Complete Async Repository Cutover for HTTP Runtime (ADR-0006)
+
+- Status: accepted
+- Context:
+  - Repository contract and postgres adapter existed, but Express runtime was still memory-only due sync handler flow.
+- Decision:
+  - Convert repository contract and call sites (app routes, order service, voice tools/state machine) to async.
+  - Enable repository factory to return Postgres backend for HTTP runtime when configured.
+- Rationale:
+  - Unblocks true runtime validation of API behavior against persistent storage.
+  - Aligns application control flow with database IO semantics.
+- Consequences:
+  - More async error paths to handle and test.
+  - Existing supertest/integration tests still need environment support and DB harness to validate postgres end-to-end.
+- Rollback:
+  - Force `STORE_BACKEND=memory` in runtime configuration while retaining async interfaces.

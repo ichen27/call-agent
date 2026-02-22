@@ -13,7 +13,7 @@ function extractQuantity(text: string): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 
-export function handleCallerUtterance(session: CallSession, utterance: string, tools: VoiceTools): StepResult {
+export async function handleCallerUtterance(session: CallSession, utterance: string, tools: VoiceTools): Promise<StepResult> {
   const text = utterance.trim();
   const lc = text.toLowerCase();
 
@@ -26,14 +26,14 @@ export function handleCallerUtterance(session: CallSession, utterance: string, t
   }
 
   if (lc.includes('staff') || lc.includes('representative') || lc.includes('human')) {
-    tools.execute('handoff', { reason: 'caller_requested_staff' });
+    await tools.execute('handoff', { reason: 'caller_requested_staff' });
     session.state = 'HANDOFF';
     session.handoff = true;
     return { session, response: 'I will transfer you to staff now.' };
   }
 
   if (session.state === 'INTENT') {
-    const modeResult = tools.execute('get_store_mode', { storeId: session.storeId });
+    const modeResult = await tools.execute('get_store_mode', { storeId: session.storeId });
     if (modeResult.type === 'mode' && modeResult.mode === 'CLOSED') {
       session.state = 'HANDOFF';
       session.handoff = true;
@@ -72,7 +72,7 @@ export function handleCallerUtterance(session: CallSession, utterance: string, t
       return { session, response: `Please confirm your order: ${session.draftItems.length} item(s). Say yes to place it.` };
     }
 
-    const validation = tools.execute('validate_item', { storeId: session.storeId, query: text });
+    const validation = await tools.execute('validate_item', { storeId: session.storeId, query: text });
     if (validation.type !== 'matches' || validation.matches.length === 0) {
       return { session, response: 'I could not find that menu item. Please say the item name again.' };
     }
@@ -102,7 +102,7 @@ export function handleCallerUtterance(session: CallSession, utterance: string, t
       session.handoff = true;
       return { session, response: 'I still cannot resolve that item. I will transfer you to staff.' };
     }
-    const validated = tools.execute('validate_item', { storeId: session.storeId, query: selected });
+    const validated = await tools.execute('validate_item', { storeId: session.storeId, query: selected });
     if (validated.type === 'matches' && validated.matches[0]) {
       session.draftItems.push({ itemId: validated.matches[0].id, qty: extractQuantity(lc) });
     }
@@ -122,7 +122,7 @@ export function handleCallerUtterance(session: CallSession, utterance: string, t
       return { session, response: 'I need your name before placing the order.' };
     }
 
-    const created = tools.execute('create_order', {
+    const created = await tools.execute('create_order', {
       storeId: session.storeId,
       callId: session.callId,
       customerName: session.customerName,

@@ -108,9 +108,11 @@
   - Repository interface added and memory store migrated to interface.
   - Postgres store async implementation scaffolded with transactional order/idempotency/event/outbox behavior.
   - Migration runner + initial SQL migration file added.
+  - Express request flow converted to async repository calls.
+  - Postgres backend enabled for HTTP runtime via `STORE_BACKEND=postgres`.
 - Next:
-  - Cut Express request flow from sync to async repository calls.
-  - Enable postgres backend for app runtime (not worker-only).
+  - Add Postgres-backed API integration tests (requires DB test harness).
+  - Harden failure handling and retry semantics around async DB operations.
 
 ---
 

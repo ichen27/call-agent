@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createRepository } from '../src/store/factory.js';
+import { PostgresStore } from '../src/store/postgres.js';
 
 const envBackup = { ...process.env };
 
@@ -16,10 +17,12 @@ describe('store factory', () => {
     expect(built.backend).toBe('memory');
   });
 
-  it('fails fast when postgres backend is selected for sync app', () => {
+  it('builds postgres repository when postgres backend is selected', () => {
     process.env.STORE_BACKEND = 'postgres';
     process.env.DATABASE_URL = 'postgres://localhost:5432/test';
 
-    expect(() => createRepository()).toThrow(/async app cutover/);
+    const built = createRepository();
+    expect(built.backend).toBe('postgres');
+    expect(built.repository).toBeInstanceOf(PostgresStore);
   });
 });

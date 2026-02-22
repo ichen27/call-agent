@@ -31,29 +31,29 @@ export class MemoryStore implements AppRepository {
   readonly idempotency = new Map<string, string>();
   private readonly callSessions = new Map<string, CallSession>();
 
-  getMenu(storeId: string): MenuItem[] {
+  async getMenu(storeId: string): Promise<MenuItem[]> {
     return [...this.menuItems.values()].filter((item) => item.storeId === storeId);
   }
 
-  setItemAvailability(itemId: string, isAvailable: boolean): MenuItem | undefined {
+  async setItemAvailability(itemId: string, isAvailable: boolean): Promise<MenuItem | undefined> {
     const item = this.menuItems.get(itemId);
     if (!item) return undefined;
     item.isAvailable = isAvailable;
     return item;
   }
 
-  setStoreMode(storeId: string, mode: StoreMode): StoreMode | undefined {
+  async setStoreMode(storeId: string, mode: StoreMode): Promise<StoreMode | undefined> {
     const store = this.stores.get(storeId);
     if (!store) return undefined;
     store.mode = mode;
     return store.mode;
   }
 
-  getStoreMode(storeId: string): StoreMode {
+  async getStoreMode(storeId: string): Promise<StoreMode> {
     return this.stores.get(storeId)?.mode ?? 'CLOSED';
   }
 
-  createOrder(input: CreateOrderInput): Order {
+  async createOrder(input: CreateOrderInput): Promise<Order> {
     const existingOrderId = this.idempotency.get(`${input.storeId}:${input.idempotencyKey}`);
     if (existingOrderId) {
       const existing = this.orders.get(existingOrderId);
@@ -95,7 +95,7 @@ export class MemoryStore implements AppRepository {
     return order;
   }
 
-  listOrders(storeId: string, statuses?: OrderStatus[]): Order[] {
+  async listOrders(storeId: string, statuses?: OrderStatus[]): Promise<Order[]> {
     return [...this.orders.values()].filter((order) => {
       const inStore = order.storeId === storeId;
       const inStatus = !statuses || statuses.includes(order.status);
@@ -103,15 +103,15 @@ export class MemoryStore implements AppRepository {
     });
   }
 
-  getOrderById(orderId: string): Order | undefined {
+  async getOrderById(orderId: string): Promise<Order | undefined> {
     return this.orders.get(orderId);
   }
 
-  getEventsForOrder(orderId: string): OrderEvent[] {
+  async getEventsForOrder(orderId: string): Promise<OrderEvent[]> {
     return this.events.filter((event) => event.orderId === orderId);
   }
 
-  updateOrderStatus(orderId: string, nextStatus: OrderStatus, actorId: string): Order {
+  async updateOrderStatus(orderId: string, nextStatus: OrderStatus, actorId: string): Promise<Order> {
     const order = this.orders.get(orderId);
     if (!order) throw new Error('order not found');
     const allowed = STATUS_TRANSITIONS[order.status];
@@ -127,7 +127,7 @@ export class MemoryStore implements AppRepository {
     return order;
   }
 
-  ackOrder(orderId: string, clientId: string): boolean {
+  async ackOrder(orderId: string, clientId: string): Promise<boolean> {
     const order = this.orders.get(orderId);
     if (!order) throw new Error('order not found');
     if (!order.ackedClientIds.includes(clientId)) {
@@ -137,11 +137,11 @@ export class MemoryStore implements AppRepository {
     return true;
   }
 
-  getEventsSince(storeId: string, sinceId: number): OrderEvent[] {
+  async getEventsSince(storeId: string, sinceId: number): Promise<OrderEvent[]> {
     return this.events.filter((event) => event.storeId === storeId && event.id > sinceId);
   }
 
-  listOutbox(storeId?: string, status?: OutboxStatus): OutboxEvent[] {
+  async listOutbox(storeId?: string, status?: OutboxStatus): Promise<OutboxEvent[]> {
     return this.outboxEvents.filter((event) => {
       const storeMatch = !storeId || event.storeId === storeId;
       const statusMatch = !status || event.status === status;
@@ -149,7 +149,7 @@ export class MemoryStore implements AppRepository {
     });
   }
 
-  publishOutbox(storeId?: string, limit = 100): OutboxPublishResult {
+  async publishOutbox(storeId?: string, limit = 100): Promise<OutboxPublishResult> {
     const selected = this.outboxEvents
       .filter((event) => event.status === 'PENDING' && (!storeId || event.storeId === storeId))
       .slice(0, limit);
@@ -164,11 +164,11 @@ export class MemoryStore implements AppRepository {
     return { publishedCount: selected.length, events: selected };
   }
 
-  getCallSession(callId: string): CallSession | undefined {
+  async getCallSession(callId: string): Promise<CallSession | undefined> {
     return this.callSessions.get(callId);
   }
 
-  setCallSession(session: CallSession): void {
+  async setCallSession(session: CallSession): Promise<void> {
     this.callSessions.set(session.callId, session);
   }
 

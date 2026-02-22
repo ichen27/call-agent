@@ -8,7 +8,7 @@ async function runOutboxWorkerOnce(limit: number): Promise<void> {
   }
 
   const store = createPostgresStore();
-  const result = await store.publishOutboxAsync(undefined, limit);
+  const result = await store.publishOutbox(undefined, limit);
   console.log(`outbox publish completed: ${result.publishedCount}`);
 }
 

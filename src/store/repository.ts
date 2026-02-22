@@ -17,22 +17,22 @@ export interface OutboxPublishResult {
 }
 
 export interface AppRepository {
-  getMenu(storeId: string): MenuItem[];
-  setItemAvailability(itemId: string, isAvailable: boolean): MenuItem | undefined;
-  setStoreMode(storeId: string, mode: StoreMode): StoreMode | undefined;
-  getStoreMode(storeId: string): StoreMode;
+  getMenu(storeId: string): Promise<MenuItem[]>;
+  setItemAvailability(itemId: string, isAvailable: boolean): Promise<MenuItem | undefined>;
+  setStoreMode(storeId: string, mode: StoreMode): Promise<StoreMode | undefined>;
+  getStoreMode(storeId: string): Promise<StoreMode>;
 
-  createOrder(input: CreateOrderInput): Order;
-  listOrders(storeId: string, statuses?: OrderStatus[]): Order[];
-  getOrderById(orderId: string): Order | undefined;
-  getEventsForOrder(orderId: string): OrderEvent[];
-  updateOrderStatus(orderId: string, nextStatus: OrderStatus, actorId: string): Order;
-  ackOrder(orderId: string, clientId: string): boolean;
-  getEventsSince(storeId: string, sinceId: number): OrderEvent[];
+  createOrder(input: CreateOrderInput): Promise<Order>;
+  listOrders(storeId: string, statuses?: OrderStatus[]): Promise<Order[]>;
+  getOrderById(orderId: string): Promise<Order | undefined>;
+  getEventsForOrder(orderId: string): Promise<OrderEvent[]>;
+  updateOrderStatus(orderId: string, nextStatus: OrderStatus, actorId: string): Promise<Order>;
+  ackOrder(orderId: string, clientId: string): Promise<boolean>;
+  getEventsSince(storeId: string, sinceId: number): Promise<OrderEvent[]>;
 
-  listOutbox(storeId?: string, status?: OutboxStatus): OutboxEvent[];
-  publishOutbox(storeId?: string, limit?: number): OutboxPublishResult;
+  listOutbox(storeId?: string, status?: OutboxStatus): Promise<OutboxEvent[]>;
+  publishOutbox(storeId?: string, limit?: number): Promise<OutboxPublishResult>;
 
-  getCallSession(callId: string): CallSession | undefined;
-  setCallSession(session: CallSession): void;
+  getCallSession(callId: string): Promise<CallSession | undefined>;
+  setCallSession(session: CallSession): Promise<void>;
 }

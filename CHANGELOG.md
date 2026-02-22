@@ -23,6 +23,8 @@
 - `AGENTS.md` now reflects repository truth, command hooks, task modes, and stop-and-ask gates for this codebase.
 - Storage usage in services is now interface-driven (`AppRepository`) instead of hard-coupled to `MemoryStore`, enabling cleaner Postgres cutover.
 - Health endpoint now includes backend metadata.
+- API request path, order service, and voice tool/state-machine flow now use async repository contracts.
+- `STORE_BACKEND=postgres` is now supported by the HTTP app runtime (with `DATABASE_URL`).
 
 ### Fixed
 
