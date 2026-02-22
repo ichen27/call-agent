@@ -35,6 +35,7 @@
   - STAFF token can access staff routes but receives 403 for manager-only routes
   - login verifies PBKDF2 credential hashes from persistent user storage
   - authenticated token from store A gets 403 for store B resources
+  - telephony/internal routes return 401 when service-token enforcement env vars are enabled
 - Realtime:
   - publish OrderCreated → WS clients receive event
 - Reconnect catch-up:

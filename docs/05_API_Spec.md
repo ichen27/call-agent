@@ -13,6 +13,9 @@
     - Other environments: protected routes enforce bearer token + role by default.
 - Token scope:
   - If bearer auth is present, store-bound endpoints enforce token `store_id` scope and return `403` on mismatch.
+- Optional service-token enforcement:
+  - Set `INTERNAL_API_KEY` to require `x-internal-api-key` on `/api/internal/outbox*`.
+  - Set `TELEPHONY_WEBHOOK_TOKEN` to require `x-telephony-token` on `/api/telephony/*`.
 
 ### GET `/health`
 **Response**

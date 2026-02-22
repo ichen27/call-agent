@@ -201,6 +201,7 @@ export function createApp() {
   }));
 
   app.get('/api/internal/outbox', asyncRoute(async (req, res) => {
+    if (!allowServiceToken(req, res, process.env.INTERNAL_API_KEY, 'x-internal-api-key')) return;
     const parsed = z
       .object({
         store_id: z.string().optional(),
@@ -214,6 +215,7 @@ export function createApp() {
   }));
 
   app.post('/api/internal/outbox/publish', asyncRoute(async (req, res) => {
+    if (!allowServiceToken(req, res, process.env.INTERNAL_API_KEY, 'x-internal-api-key')) return;
     const parsed = z
       .object({
         store_id: z.string().optional(),
@@ -227,6 +229,7 @@ export function createApp() {
   }));
 
   app.post('/api/telephony/inbound', asyncRoute(async (req, res) => {
+    if (!allowServiceToken(req, res, process.env.TELEPHONY_WEBHOOK_TOKEN, 'x-telephony-token')) return;
     const parsed = z
       .object({
         call_id: z.string().min(1),
@@ -270,6 +273,7 @@ export function createApp() {
   }));
 
   app.post('/api/telephony/status', asyncRoute(async (req, res) => {
+    if (!allowServiceToken(req, res, process.env.TELEPHONY_WEBHOOK_TOKEN, 'x-telephony-token')) return;
     const parsed = z
       .object({
         call_id: z.string().min(1),
@@ -297,6 +301,25 @@ function allowStoreScope(authStoreId: string | undefined, targetStoreId: string,
 
   if (authStoreId !== targetStoreId) {
     res.status(403).json({ error: { code: 'FORBIDDEN', message: 'store scope mismatch' } });
+    return false;
+  }
+
+  return true;
+}
+
+function allowServiceToken(
+  req: express.Request,
+  res: express.Response,
+  configuredToken: string | undefined,
+  headerName: string
+): boolean {
+  if (!configuredToken) {
+    return true;
+  }
+
+  const provided = req.header(headerName);
+  if (provided !== configuredToken) {
+    res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'invalid service token' } });
     return false;
   }
 

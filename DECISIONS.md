@@ -237,3 +237,21 @@
   - Queue-native transports (Redis/pubsub) remain a follow-up for higher throughput fan-out.
 - Rollback:
   - Force `OUTBOX_PUBLISH_TRANSPORT=stdout` and continue using retry/dead-letter state machine.
+
+## 2026-02-22 - Add Optional Service Token Protection for Telephony/Internal Endpoints (ADR-0014)
+
+- Status: accepted
+- Context:
+  - Telephony webhooks and internal outbox endpoints are sensitive but were open by default.
+- Decision:
+  - Support optional shared-token enforcement for internal and telephony routes:
+    - `INTERNAL_API_KEY` -> `x-internal-api-key`
+    - `TELEPHONY_WEBHOOK_TOKEN` -> `x-telephony-token`
+  - Keep behavior optional for local/dev compatibility when env vars are unset.
+- Rationale:
+  - Adds immediate abuse protection and change-safe hardening without breaking current local flows.
+- Consequences:
+  - Deployments must provision and rotate service tokens in secret management.
+  - Future provider-native webhook signatures can layer on top of this control.
+- Rollback:
+  - Unset service-token env vars to restore permissive behavior while preserving route functionality.

@@ -29,6 +29,7 @@
 - Staff user auth migration (`migrations/0003_staff_users_auth.sql`) for persistent credential storage.
 - Store-scope authorization checks for authenticated users on store/order event operations.
 - Outbox publisher webhook transport mode with timeout/auth configuration and dedicated publisher tests.
+- Optional service-token enforcement for telephony and internal outbox endpoints.
 
 ### Changed
 
@@ -45,6 +46,7 @@
 - Auth login flow now resolves users from repository storage (`staff_users` in Postgres) instead of in-memory plaintext credentials.
 - Authenticated requests are now constrained to their token store scope (`403` on cross-store access).
 - Outbox worker now emits structured backlog metrics and dead-letter alert logs per run.
+- Internal and telephony sensitive routes can be locked with explicit service tokens.
 
 ### Fixed
 

@@ -61,6 +61,10 @@ Auth user config (`AUTH_USERS_JSON`) accepts either `passwordHash` (preferred) o
 ]
 ```
 
+Service endpoint protection (optional, recommended outside local):
+- `INTERNAL_API_KEY`: required in `x-internal-api-key` for `/api/internal/outbox*`.
+- `TELEPHONY_WEBHOOK_TOKEN`: required in `x-telephony-token` for `/api/telephony/*`.
+
 ## Checks
 
 ```bash
