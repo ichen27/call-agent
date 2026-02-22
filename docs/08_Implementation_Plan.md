@@ -33,8 +33,9 @@
   - Login now uses persistent user lookup (`staff_users`) with PBKDF2 password hashes (memory + postgres adapters).
   - Store-scoped token checks added for authenticated access to store/order event operations.
   - Optional service-token enforcement added for telephony and internal outbox routes.
+  - Auth credential bootstrap/rotation runbook added (`docs/12_Auth_Operations_Runbook.md`).
 - Next:
-  - Add manager/staff user bootstrap and rotation runbook for production credentials.
+  - Add provider-native webhook signature verification in addition to shared token controls.
 
 ---
 

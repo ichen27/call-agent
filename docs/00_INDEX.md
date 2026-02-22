@@ -11,3 +11,4 @@
 - 09_Observability_Plan.md
 - 10_Security_Privacy_Checklist.md
 - 11_Launch_and_Rollback_Plan.md
+- 12_Auth_Operations_Runbook.md

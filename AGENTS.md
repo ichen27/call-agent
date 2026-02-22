@@ -22,6 +22,7 @@ Purpose: ship production-quality changes that are correct, secure, tested, maint
 - Observability: `docs/09_Observability_Plan.md`
 - Security/privacy: `docs/10_Security_Privacy_Checklist.md`
 - Rollout/rollback: `docs/11_Launch_and_Rollback_Plan.md`
+- Auth operations: `docs/12_Auth_Operations_Runbook.md`
 - Change log: `CHANGELOG.md`
 - Architecture decisions: `DECISIONS.md`
 

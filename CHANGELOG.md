@@ -30,6 +30,7 @@
 - Store-scope authorization checks for authenticated users on store/order event operations.
 - Outbox publisher webhook transport mode with timeout/auth configuration and dedicated publisher tests.
 - Optional service-token enforcement for telephony and internal outbox endpoints.
+- Auth operations runbook for credential/token bootstrap and rotation (`docs/12_Auth_Operations_Runbook.md`).
 
 ### Changed
 
