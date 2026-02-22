@@ -65,3 +65,7 @@ STORE_BACKEND=postgres DATABASE_URL=postgres://<user>:<pass>@<host>:5432/<db> np
 Outbox worker notes:
 - Worker now publishes pending outbox events one-by-one and marks each as `SENT` or `FAILED`.
 - For local failure simulation, set `OUTBOX_FAIL_EVENT_TYPE=<EventType>` before running `worker:outbox`.
+- Retry/dead-letter controls:
+  - `OUTBOX_MAX_ATTEMPTS` (default `5`)
+  - `OUTBOX_BASE_DELAY_MS` (default `1000`)
+  - `OUTBOX_MAX_DELAY_MS` (default `60000`)

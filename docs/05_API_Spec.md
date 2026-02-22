@@ -249,7 +249,7 @@ Returns full order + items + events.
 
 ## Internal operations (MVP debug surface)
 
-### GET `/api/internal/outbox?store_id=...&status=PENDING|SENT|FAILED`
+### GET `/api/internal/outbox?store_id=...&status=PENDING|SENT|FAILED|DEAD_LETTER`
 Returns outbox rows for inspection in local/dev environments.
 
 ### POST `/api/internal/outbox/publish`

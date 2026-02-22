@@ -44,7 +44,7 @@ export interface OrderEvent {
   createdAt: string;
 }
 
-export type OutboxStatus = 'PENDING' | 'SENT' | 'FAILED';
+export type OutboxStatus = 'PENDING' | 'SENT' | 'FAILED' | 'DEAD_LETTER';
 
 export interface OutboxEvent {
   id: number;
@@ -56,6 +56,7 @@ export interface OutboxEvent {
   status: OutboxStatus;
   attempts: number;
   createdAt: string;
+  nextAttemptAt: string;
   sentAt?: string;
 }
 

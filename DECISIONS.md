@@ -146,3 +146,21 @@
   - Full API integration testing still requires network-enabled environments due sandbox port restrictions.
 - Rollback:
   - Revert wrapper/middleware if route-level handling is preferred, while preserving equivalent rejection safety.
+
+## 2026-02-22 - Persist Retry Scheduling and Dead-Letter Outbox State (ADR-0009)
+
+- Status: accepted
+- Context:
+  - Per-event worker processing existed, but retry cadence and terminal failure routing were not explicit.
+- Decision:
+  - Add `next_attempt_at` scheduling metadata for outbox rows.
+  - Process only due outbox rows in worker (`status IN PENDING/FAILED AND next_attempt_at <= now()`).
+  - Apply exponential backoff and move exhausted events to `DEAD_LETTER`.
+- Rationale:
+  - Makes retry behavior deterministic and inspectable across worker restarts.
+  - Prevents infinite immediate retries on repeatedly failing events.
+- Consequences:
+  - Adds migration and policy config surface (`OUTBOX_MAX_ATTEMPTS`, `OUTBOX_BASE_DELAY_MS`, `OUTBOX_MAX_DELAY_MS`).
+  - Requires future operational metrics/alerts on dead-letter backlog.
+- Rollback:
+  - Disable due-time filtering and revert to immediate retry loop if staged rollout shows unacceptable latency.

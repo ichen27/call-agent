@@ -93,7 +93,7 @@ describe('memory store outbox and order detail behavior', () => {
       throw new Error('missing outbox event');
     }
 
-    const failed = await store.markOutboxFailed(first.id);
+    const failed = await store.markOutboxFailed(first.id, new Date(Date.now() + 1000).toISOString());
     expect(failed?.status).toBe('FAILED');
 
     const retried = await store.markOutboxSent(first.id);

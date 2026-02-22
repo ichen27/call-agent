@@ -149,6 +149,19 @@ export class MemoryStore implements AppRepository {
     });
   }
 
+  async listOutboxDue(limit: number, storeId?: string): Promise<OutboxEvent[]> {
+    const now = Date.now();
+    return this.outboxEvents
+      .filter((event) => {
+        const storeMatch = !storeId || event.storeId === storeId;
+        const statusMatch = event.status === 'PENDING' || event.status === 'FAILED';
+        const due = new Date(event.nextAttemptAt).getTime() <= now;
+        return storeMatch && statusMatch && due;
+      })
+      .sort((a, b) => a.id - b.id)
+      .slice(0, limit);
+  }
+
   async publishOutbox(storeId?: string, limit = 100): Promise<OutboxPublishResult> {
     const selected = this.outboxEvents
       .filter((event) => event.status === 'PENDING' && (!storeId || event.storeId === storeId))
@@ -159,6 +172,7 @@ export class MemoryStore implements AppRepository {
       event.status = 'SENT';
       event.attempts += 1;
       event.sentAt = now;
+      event.nextAttemptAt = now;
     }
 
     return { publishedCount: selected.length, events: selected };
@@ -169,15 +183,26 @@ export class MemoryStore implements AppRepository {
     if (!event) return undefined;
     event.status = 'SENT';
     event.attempts += 1;
-    event.sentAt = new Date().toISOString();
+    const now = new Date().toISOString();
+    event.sentAt = now;
+    event.nextAttemptAt = now;
     return event;
   }
 
-  async markOutboxFailed(eventId: number): Promise<OutboxEvent | undefined> {
+  async markOutboxFailed(eventId: number, nextAttemptAt: string): Promise<OutboxEvent | undefined> {
     const event = this.outboxEvents.find((entry) => entry.id === eventId);
     if (!event) return undefined;
     event.status = 'FAILED';
     event.attempts += 1;
+    event.nextAttemptAt = nextAttemptAt;
+    delete event.sentAt;
+    return event;
+  }
+
+  async markOutboxDeadLetter(eventId: number): Promise<OutboxEvent | undefined> {
+    const event = this.outboxEvents.find((entry) => entry.id === eventId);
+    if (!event) return undefined;
+    event.status = 'DEAD_LETTER';
     return event;
   }
 
@@ -209,7 +234,8 @@ export class MemoryStore implements AppRepository {
       payload,
       status: 'PENDING',
       attempts: 0,
-      createdAt: event.createdAt
+      createdAt: event.createdAt,
+      nextAttemptAt: event.createdAt
     });
 
     this.eventSeq += 1;

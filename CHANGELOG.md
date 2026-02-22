@@ -19,6 +19,9 @@
 - Outbox publisher abstraction (`src/workers/publishers.ts`) with stdout transport placeholder.
 - Store factory selection layer (`src/store/factory.ts`) and tests for backend selection behavior (`tests/storeFactory.test.ts`).
 - Postgres repository integration test suite (`tests/postgresStore.integration.test.ts`) for idempotency, transitions, replay, and outbox state updates.
+- Outbox batch runner policy module (`src/workers/outboxRunner.ts`) with exponential retry scheduling and dead-letter routing.
+- Outbox worker policy tests (`tests/outboxRunner.test.ts`).
+- Follow-up migration (`migrations/0002_outbox_backoff.sql`) to add `next_attempt_at` scheduling field for existing databases.
 
 ### Changed
 
@@ -29,6 +32,7 @@
 - `STORE_BACKEND=postgres` is now supported by the HTTP app runtime (with `DATABASE_URL`).
 - Outbox worker flow now marks each event as `SENT` or `FAILED` based on per-event publish result.
 - API routing now uses centralized async error capture and shared error middleware for safer async failure handling.
+- Outbox storage/worker flow now supports `DEAD_LETTER` status and due-time filtering (`next_attempt_at`) for retry control.
 
 ### Fixed
 

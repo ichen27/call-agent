@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Pool } from 'pg';
@@ -15,9 +15,15 @@ describeIfDb('PostgresStore integration', () => {
   const store = new PostgresStore(pool);
 
   beforeAll(async () => {
-    const migrationPath = join(fileURLToPath(new URL('.', import.meta.url)), '../migrations/0001_init.sql');
-    const sql = readFileSync(migrationPath, 'utf8');
-    await pool.query(sql);
+    const migrationsDir = join(fileURLToPath(new URL('.', import.meta.url)), '../migrations');
+    const files = readdirSync(migrationsDir)
+      .filter((name) => name.endsWith('.sql'))
+      .sort();
+
+    for (const file of files) {
+      const sql = readFileSync(join(migrationsDir, file), 'utf8');
+      await pool.query(sql);
+    }
   });
 
   beforeEach(async () => {
@@ -114,7 +120,7 @@ describeIfDb('PostgresStore integration', () => {
       throw new Error('missing pending outbox event');
     }
 
-    const failed = await store.markOutboxFailed(first.id);
+    const failed = await store.markOutboxFailed(first.id, new Date(Date.now() + 1000).toISOString());
     expect(failed?.status).toBe('FAILED');
 
     const sent = await store.markOutboxSent(first.id);

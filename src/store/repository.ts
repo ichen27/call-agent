@@ -31,9 +31,11 @@ export interface AppRepository {
   getEventsSince(storeId: string, sinceId: number): Promise<OrderEvent[]>;
 
   listOutbox(storeId?: string, status?: OutboxStatus): Promise<OutboxEvent[]>;
+  listOutboxDue(limit: number, storeId?: string): Promise<OutboxEvent[]>;
   publishOutbox(storeId?: string, limit?: number): Promise<OutboxPublishResult>;
   markOutboxSent(eventId: number): Promise<OutboxEvent | undefined>;
-  markOutboxFailed(eventId: number): Promise<OutboxEvent | undefined>;
+  markOutboxFailed(eventId: number, nextAttemptAt: string): Promise<OutboxEvent | undefined>;
+  markOutboxDeadLetter(eventId: number): Promise<OutboxEvent | undefined>;
 
   getCallSession(callId: string): Promise<CallSession | undefined>;
   setCallSession(session: CallSession): Promise<void>;

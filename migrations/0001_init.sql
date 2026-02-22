@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS outbox_events (
   status TEXT NOT NULL DEFAULT 'PENDING',
   attempts INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   sent_at TIMESTAMPTZ
 );
 

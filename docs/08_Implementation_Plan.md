@@ -128,8 +128,9 @@
 - Done:
   - Outbox worker entrypoint added for mark-sent loop step.
   - Worker now processes pending rows per-event and marks sent/failed state explicitly.
+  - Retry/dead-letter policy added with exponential backoff scheduling metadata.
 - Next:
-  - Add transport publishing (Redis/queue), retries/backoff policy, and failure alerts.
+  - Add transport publishing (Redis/queue) and failure alerts/metrics.
 
 ---
 

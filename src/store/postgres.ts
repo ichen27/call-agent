@@ -141,6 +141,10 @@ export class PostgresStore implements AppRepository {
     return this.listOutboxAsync(storeId, status);
   }
 
+  listOutboxDue(limit: number, storeId?: string): Promise<OutboxEvent[]> {
+    return this.listOutboxDueAsync(limit, storeId);
+  }
+
   publishOutbox(storeId?: string, limit?: number): Promise<OutboxPublishResult> {
     return this.publishOutboxAsync(storeId, limit);
   }
@@ -148,9 +152,9 @@ export class PostgresStore implements AppRepository {
   async markOutboxSent(eventId: number): Promise<OutboxEvent | undefined> {
     const result = await this.pool.query(
       `UPDATE outbox_events
-       SET status = 'SENT', attempts = attempts + 1, sent_at = now()
+       SET status = 'SENT', attempts = attempts + 1, next_attempt_at = now(), sent_at = now()
        WHERE id = $1
-       RETURNING id, store_id, aggregate_id, event_type, payload_json, status, attempts, created_at, sent_at`,
+       RETURNING id, store_id, aggregate_id, event_type, payload_json, status, attempts, created_at, next_attempt_at, sent_at`,
       [eventId]
     );
     const row = result.rows[0];
@@ -164,7 +168,8 @@ export class PostgresStore implements AppRepository {
       payload: row.payload_json as Record<string, unknown>,
       status: row.status as OutboxStatus,
       attempts: Number(row.attempts),
-      createdAt: String(row.created_at)
+      createdAt: String(row.created_at),
+      nextAttemptAt: String(row.next_attempt_at)
     };
     if (row.sent_at) {
       event.sentAt = String(row.sent_at);
@@ -172,12 +177,40 @@ export class PostgresStore implements AppRepository {
     return event;
   }
 
-  async markOutboxFailed(eventId: number): Promise<OutboxEvent | undefined> {
+  async markOutboxFailed(eventId: number, nextAttemptAt: string): Promise<OutboxEvent | undefined> {
     const result = await this.pool.query(
       `UPDATE outbox_events
-       SET status = 'FAILED', attempts = attempts + 1
+       SET status = 'FAILED', attempts = attempts + 1, next_attempt_at = $2, sent_at = NULL
        WHERE id = $1
-       RETURNING id, store_id, aggregate_id, event_type, payload_json, status, attempts, created_at, sent_at`,
+       RETURNING id, store_id, aggregate_id, event_type, payload_json, status, attempts, created_at, next_attempt_at, sent_at`,
+      [eventId, nextAttemptAt]
+    );
+    const row = result.rows[0];
+    if (!row) return undefined;
+    const event: OutboxEvent = {
+      id: Number(row.id),
+      storeId: String(row.store_id),
+      aggregateType: 'ORDER',
+      aggregateId: String(row.aggregate_id),
+      eventType: String(row.event_type),
+      payload: row.payload_json as Record<string, unknown>,
+      status: row.status as OutboxStatus,
+      attempts: Number(row.attempts),
+      createdAt: String(row.created_at),
+      nextAttemptAt: String(row.next_attempt_at)
+    };
+    if (row.sent_at) {
+      event.sentAt = String(row.sent_at);
+    }
+    return event;
+  }
+
+  async markOutboxDeadLetter(eventId: number): Promise<OutboxEvent | undefined> {
+    const result = await this.pool.query(
+      `UPDATE outbox_events
+       SET status = 'DEAD_LETTER'
+       WHERE id = $1
+       RETURNING id, store_id, aggregate_id, event_type, payload_json, status, attempts, created_at, next_attempt_at, sent_at`,
       [eventId]
     );
     const row = result.rows[0];
@@ -191,7 +224,8 @@ export class PostgresStore implements AppRepository {
       payload: row.payload_json as Record<string, unknown>,
       status: row.status as OutboxStatus,
       attempts: Number(row.attempts),
-      createdAt: String(row.created_at)
+      createdAt: String(row.created_at),
+      nextAttemptAt: String(row.next_attempt_at)
     };
     if (row.sent_at) {
       event.sentAt = String(row.sent_at);
@@ -312,7 +346,7 @@ export class PostgresStore implements AppRepository {
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const result = await this.pool.query(
-      `SELECT id, store_id, aggregate_type, aggregate_id, event_type, payload_json, status, attempts, created_at, sent_at
+      `SELECT id, store_id, aggregate_type, aggregate_id, event_type, payload_json, status, attempts, created_at, next_attempt_at, sent_at
        FROM outbox_events ${whereSql} ORDER BY id ASC`,
       values
     );
@@ -327,7 +361,45 @@ export class PostgresStore implements AppRepository {
         payload: row.payload_json as Record<string, unknown>,
         status: row.status as OutboxStatus,
         attempts: Number(row.attempts),
-        createdAt: String(row.created_at)
+        createdAt: String(row.created_at),
+        nextAttemptAt: String(row.next_attempt_at)
+      };
+      if (row.sent_at) {
+        event.sentAt = String(row.sent_at);
+      }
+      return event;
+    });
+  }
+
+  async listOutboxDueAsync(limit: number, storeId?: string): Promise<OutboxEvent[]> {
+    const values: unknown[] = [limit];
+    let whereSql = "WHERE status IN ('PENDING', 'FAILED') AND next_attempt_at <= now()";
+    if (storeId) {
+      values.push(storeId);
+      whereSql += ` AND store_id = $${values.length}`;
+    }
+
+    const result = await this.pool.query(
+      `SELECT id, store_id, aggregate_type, aggregate_id, event_type, payload_json, status, attempts, created_at, next_attempt_at, sent_at
+       FROM outbox_events
+       ${whereSql}
+       ORDER BY id ASC
+       LIMIT $1`,
+      values
+    );
+
+    return result.rows.map((row) => {
+      const event: OutboxEvent = {
+        id: Number(row.id),
+        storeId: String(row.store_id),
+        aggregateType: 'ORDER',
+        aggregateId: String(row.aggregate_id),
+        eventType: String(row.event_type),
+        payload: row.payload_json as Record<string, unknown>,
+        status: row.status as OutboxStatus,
+        attempts: Number(row.attempts),
+        createdAt: String(row.created_at),
+        nextAttemptAt: String(row.next_attempt_at)
       };
       if (row.sent_at) {
         event.sentAt = String(row.sent_at);
@@ -357,9 +429,9 @@ export class PostgresStore implements AppRepository {
     const ids = selected.rows.map((row) => Number(row.id));
     const updated = await this.pool.query(
       `UPDATE outbox_events
-       SET status = 'SENT', attempts = attempts + 1, sent_at = now()
+       SET status = 'SENT', attempts = attempts + 1, next_attempt_at = now(), sent_at = now()
        WHERE id = ANY($1::bigint[])
-       RETURNING id, store_id, aggregate_id, event_type, payload_json, status, attempts, created_at, sent_at`,
+       RETURNING id, store_id, aggregate_id, event_type, payload_json, status, attempts, created_at, next_attempt_at, sent_at`,
       [ids]
     );
 
@@ -373,7 +445,8 @@ export class PostgresStore implements AppRepository {
         payload: row.payload_json as Record<string, unknown>,
         status: row.status as OutboxStatus,
         attempts: Number(row.attempts),
-        createdAt: String(row.created_at)
+        createdAt: String(row.created_at),
+        nextAttemptAt: String(row.next_attempt_at)
       };
       if (row.sent_at) {
         event.sentAt = String(row.sent_at);
@@ -587,8 +660,8 @@ export class PostgresStore implements AppRepository {
     );
 
     await client.query(
-      `INSERT INTO outbox_events (store_id, aggregate_type, aggregate_id, event_type, payload_json, status, attempts)
-       VALUES ($1, 'ORDER', $2, $3, $4::jsonb, 'PENDING', 0)`,
+      `INSERT INTO outbox_events (store_id, aggregate_type, aggregate_id, event_type, payload_json, status, attempts, next_attempt_at)
+       VALUES ($1, 'ORDER', $2, $3, $4::jsonb, 'PENDING', 0, now())`,
       [storeId, orderId, eventType, JSON.stringify(payload)]
     );
   }

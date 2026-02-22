@@ -161,7 +161,7 @@ export function createApp() {
     const parsed = z
       .object({
         store_id: z.string().optional(),
-        status: z.enum(['PENDING', 'SENT', 'FAILED']).optional()
+        status: z.enum(['PENDING', 'SENT', 'FAILED', 'DEAD_LETTER']).optional()
       })
       .safeParse(req.query);
 
