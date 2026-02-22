@@ -305,3 +305,19 @@
   - Reconnect replay cursor logic remains a follow-up hardening item.
 - Rollback:
   - Keep backend realtime endpoints and temporarily revert staff operations to API/manual scripts if UI regressions appear.
+
+## 2026-02-22 - Expand Postgres Coverage to API Route Integration Tests (ADR-0018)
+
+- Status: accepted
+- Context:
+  - Postgres testing previously focused on repository-level integration and missed HTTP route wiring behavior.
+- Decision:
+  - Add DB-gated route integration tests (`tests/postgresApi.integration.test.ts`) covering login, idempotent create, status/ack transitions, events replay, and store-scope rejection.
+  - Include the suite under `npm run test:integration`.
+- Rationale:
+  - Validates end-to-end API behavior on real Postgres-backed runtime path before pilot rollout.
+- Consequences:
+  - Requires `DATABASE_URL` for full integration suite execution.
+  - Slightly longer CI time in DB-enabled environments.
+- Rollback:
+  - Keep repository integration tests as fallback if route suite becomes unstable in constrained environments.

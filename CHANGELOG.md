@@ -35,6 +35,7 @@
 - Native realtime websocket gateway (`/ws`) with JWT store-scoped connections.
 - Internal realtime publish endpoint and outbox `ws` transport mode for worker-to-gateway fanout.
 - Staff web app MVP shell (`apps/staff-web`) with login, live orders board, websocket updates, status/ack actions, and manager controls.
+- Postgres API integration test coverage for auth/order/status/events route behavior (`tests/postgresApi.integration.test.ts`).
 
 ### Changed
 

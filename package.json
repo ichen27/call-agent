@@ -12,7 +12,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:integration": "vitest run tests/postgresStore.integration.test.ts",
+    "test:integration": "vitest run tests/postgresStore.integration.test.ts tests/postgresApi.integration.test.ts",
     "test:watch": "vitest",
     "ci": "npm run lint && npm run typecheck && npm test && npm run build"
   },

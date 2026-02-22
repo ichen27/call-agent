@@ -133,8 +133,8 @@
   - Migration runner + initial SQL migration file added.
   - Express request flow converted to async repository calls.
   - Postgres backend enabled for HTTP runtime via `STORE_BACKEND=postgres`.
+  - Postgres API route integration tests added (`tests/postgresApi.integration.test.ts`) and wired into `npm run test:integration`.
 - Next:
-  - Extend Postgres integration tests from repository-level to full API route coverage.
   - Harden failure handling and retry semantics around async DB operations.
 
 ---
