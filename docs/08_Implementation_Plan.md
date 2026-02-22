@@ -58,6 +58,14 @@
 
 **Dependencies:** event payload contract.
 
+**Status (current):**
+- Done:
+  - Native WebSocket gateway endpoint added (`/ws?token=...&store_id=...`) with JWT store-scope checks.
+  - Internal realtime publish endpoint added (`/api/internal/realtime/publish`) for event fanout.
+- Next:
+  - Build staff web app screens + websocket client + reconnect catch-up flow.
+  - Add end-to-end validation from outbox worker publish to connected UI client.
+
 ---
 
 ## Milestone 3 — Menu + Store Controls (Ops levers)
@@ -144,6 +152,7 @@
   - Worker now processes pending rows per-event and marks sent/failed state explicitly.
   - Retry/dead-letter policy added with exponential backoff scheduling metadata.
   - Transport abstraction now supports webhook publishing (`OUTBOX_PUBLISH_TRANSPORT=webhook`) with timeout/auth options.
+  - Transport abstraction now supports realtime publish mode (`OUTBOX_PUBLISH_TRANSPORT=ws`) targeting gateway publish endpoint.
   - Worker emits backlog metrics and dead-letter alerts for operational visibility.
 - Next:
   - Add Redis/queue publisher implementation and delivery acknowledgement contract.

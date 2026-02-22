@@ -30,6 +30,7 @@
   - create order → outbox row exists in same commit
   - worker publishes and marks SENT
   - transport publisher returns failure on non-2xx webhook responses
+  - worker ws-transport publish hits realtime endpoint and returns delivered client count
 - Auth/RBAC:
   - protected route without bearer token returns 401 when auth enforcement enabled
   - STAFF token can access staff routes but receives 403 for manager-only routes

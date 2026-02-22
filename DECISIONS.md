@@ -272,3 +272,20 @@
   - Provider-specific canonicalization/timestamp rules may require adaptation later.
 - Rollback:
   - Unset `TELEPHONY_WEBHOOK_SECRET` to disable signature enforcement while keeping token guard if needed.
+
+## 2026-02-22 - Add Native WebSocket Gateway and Internal Realtime Publish Endpoint (ADR-0016)
+
+- Status: accepted
+- Context:
+  - Outbox reliability is in place, but staff-facing realtime fanout path was still missing.
+- Decision:
+  - Add native websocket upgrade handling at `/ws` with JWT token + store-scope authorization.
+  - Add `/api/internal/realtime/publish` endpoint for worker fanout into connected store clients.
+  - Add outbox publisher transport mode `ws` to post outbox envelopes to realtime publish endpoint.
+- Rationale:
+  - Delivers realtime visibility without introducing new infrastructure dependencies for pilot MVP.
+- Consequences:
+  - WebSocket implementation is intentionally minimal (server push focused).
+  - Horizontal scaling and shared connection state need follow-up architecture (Redis/broker) post-pilot.
+- Rollback:
+  - Switch `OUTBOX_PUBLISH_TRANSPORT` back to `stdout` or `webhook` and disable websocket client usage.

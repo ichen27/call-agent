@@ -11,6 +11,7 @@ import { asyncRoute } from './http/asyncRoute.js';
 import { errorMiddleware } from './http/errorMiddleware.js';
 import { AuthService } from './auth/service.js';
 import { authenticateRequest, requireRole } from './auth/middleware.js';
+import type { RealtimeFanout } from './realtime/gateway.js';
 
 const statusSchema = z.enum(['NEW', 'ACCEPTED', 'IN_PROGRESS', 'READY', 'COMPLETED', 'REJECTED', 'CANCELED']);
 const modeSchema = z.enum(['OPEN', 'BUSY', 'CLOSED']);
@@ -37,8 +38,13 @@ const createOrderSchema = z.object({
   call_id: z.string().optional()
 });
 
-export function createApp() {
+interface CreateAppOptions {
+  realtimeGateway?: RealtimeFanout;
+}
+
+export function createApp(options: CreateAppOptions = {}) {
   const app = express();
+  const { realtimeGateway } = options;
   const { repository: db, backend } = createRepository();
   const orderService = new OrderService(db);
   const voiceTools = new VoiceTools(db, orderService);
@@ -54,7 +60,7 @@ export function createApp() {
   app.use(authenticateRequest(authService));
 
   app.get('/health', (_req, res) => {
-    res.json({ ok: true, service: 'call-agent', backend });
+    res.json({ ok: true, service: 'call-agent', backend, realtime_clients: realtimeGateway?.connectedCount() ?? 0 });
   });
 
   app.post('/api/auth/login', asyncRoute(async (req, res) => {
@@ -235,6 +241,31 @@ export function createApp() {
     res.json(result);
   }));
 
+  app.post('/api/internal/realtime/publish', asyncRoute(async (req, res) => {
+    if (!allowServiceToken(req, res, process.env.INTERNAL_API_KEY, 'x-internal-api-key')) return;
+    if (!realtimeGateway) {
+      return res.status(503).json({ error: { code: 'REALTIME_DISABLED', message: 'realtime gateway not configured' } });
+    }
+
+    const parsed = z
+      .object({
+        kind: z.literal('outbox_publish'),
+        event_id: z.number().int().positive(),
+        store_id: z.string().min(1),
+        event_type: z.string().min(1),
+        aggregate_id: z.string().min(1),
+        aggregate_type: z.string().min(1),
+        attempts: z.number().int().nonnegative(),
+        created_at: z.string().min(1),
+        payload: z.record(z.unknown())
+      })
+      .safeParse(req.body);
+
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const delivered = realtimeGateway.publish(parsed.data);
+    res.json({ delivered });
+  }));
+
   app.post('/api/telephony/inbound', asyncRoute(async (req, res) => {
     if (!allowTelephonyAccess(req, res)) return;
     const parsed = z
@@ -298,7 +329,7 @@ export function createApp() {
 
   app.use(errorMiddleware);
 
-  return { app, db, orderService };
+  return { app, db, orderService, authService };
 }
 
 function allowStoreScope(authStoreId: string | undefined, targetStoreId: string, res: express.Response): boolean {

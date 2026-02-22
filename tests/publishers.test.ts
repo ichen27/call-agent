@@ -79,4 +79,26 @@ describe('outbox publisher factory', () => {
     const publisher = createOutboxPublisher();
     await expect(publisher.publish(sampleEvent())).rejects.toThrow(/simulated publish failure/);
   });
+
+  it('uses realtime ws transport endpoint when configured', async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    process.env.OUTBOX_PUBLISH_TRANSPORT = 'ws';
+    process.env.OUTBOX_REALTIME_PUBLISH_URL = 'http://localhost:3000/api/internal/realtime/publish';
+    process.env.INTERNAL_API_KEY = 'internal-secret';
+
+    const publisher = createOutboxPublisher();
+    await publisher.publish(sampleEvent());
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const firstCall = fetchMock.mock.calls[0] as unknown[] | undefined;
+    if (!firstCall) {
+      throw new Error('expected fetch call');
+    }
+    expect(firstCall[0]).toBe('http://localhost:3000/api/internal/realtime/publish');
+    const init = firstCall[1] as RequestInit | undefined;
+    const headers = init?.headers as Record<string, string>;
+    expect(headers['x-internal-api-key']).toBe('internal-secret');
+  });
 });

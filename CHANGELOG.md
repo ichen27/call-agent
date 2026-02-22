@@ -32,6 +32,8 @@
 - Optional service-token enforcement for telephony and internal outbox endpoints.
 - Auth operations runbook for credential/token bootstrap and rotation (`docs/12_Auth_Operations_Runbook.md`).
 - Telephony webhook HMAC signature enforcement (`TELEPHONY_WEBHOOK_SECRET`, `x-telephony-signature`).
+- Native realtime websocket gateway (`/ws`) with JWT store-scoped connections.
+- Internal realtime publish endpoint and outbox `ws` transport mode for worker-to-gateway fanout.
 
 ### Changed
 

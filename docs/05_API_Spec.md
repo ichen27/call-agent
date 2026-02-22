@@ -15,13 +15,14 @@
   - If bearer auth is present, store-bound endpoints enforce token `store_id` scope and return `403` on mismatch.
 - Optional service-token enforcement:
   - Set `INTERNAL_API_KEY` to require `x-internal-api-key` on `/api/internal/outbox*`.
+  - Set `INTERNAL_API_KEY` to require `x-internal-api-key` on `/api/internal/realtime/publish`.
   - Set `TELEPHONY_WEBHOOK_TOKEN` to require `x-telephony-token` on `/api/telephony/*`.
   - Set `TELEPHONY_WEBHOOK_SECRET` to require `x-telephony-signature` (`sha256=<hex-hmac-of-raw-body>`).
 
 ### GET `/health`
 **Response**
 ```json
-{ "ok": true, "service": "call-agent", "backend": "memory" }
+{ "ok": true, "service": "call-agent", "backend": "memory", "realtime_clients": 0 }
 ```
 
 ---
@@ -274,25 +275,46 @@ Marks pending outbox rows as sent.
 { "store_id":"uuid", "limit": 100 }
 ```
 
-### WebSocket `wss://<host>/ws?store_id=...`
-Client subscribe:
-```json
-{ "type":"subscribe", "store_id":"uuid", "since_event_id":12345 }
-```
+### POST `/api/internal/realtime/publish`
+Publishes outbox-style event envelopes to connected realtime websocket clients.
 
-Server push:
+Headers:
+- `x-internal-api-key` (required when `INTERNAL_API_KEY` is set)
+
+Request:
 ```json
 {
-  "type":"OrderCreated",
+  "kind":"outbox_publish",
   "event_id":12346,
   "store_id":"uuid",
+  "event_type":"OrderCreated",
+  "aggregate_id":"uuid",
+  "aggregate_type":"ORDER",
+  "attempts":0,
+  "created_at":"2026-02-21T19:02:10-05:00",
   "payload": { "order_id":"uuid", "order_number":1042, "status":"NEW" }
 }
 ```
 
-Client ACK:
+Response:
 ```json
-{ "type":"ack", "event_id":12346 }
+{ "delivered": 3 }
+```
+
+### WebSocket `wss://<host>/ws?token=<jwt>&store_id=<store_id>`
+Server push envelope:
+```json
+{
+  "kind":"outbox_publish",
+  "event_id":12346,
+  "store_id":"uuid",
+  "event_type":"OrderCreated",
+  "aggregate_id":"uuid",
+  "aggregate_type":"ORDER",
+  "attempts":0,
+  "created_at":"2026-02-21T19:02:10-05:00",
+  "payload": { "order_id":"uuid", "order_number":1042, "status":"NEW" }
+}
 ```
 
 ---

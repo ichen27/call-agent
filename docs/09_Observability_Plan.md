@@ -13,6 +13,7 @@
 - outbox_publish_attempt / success / failed
 - outbox_worker_result (selected/sent/failed/dead-lettered + backlog before/after)
 - outbox_dead_letter_alert
+- realtime_publish_delivered (count by store)
 - ws_client_connected / disconnected
 - call_started / call_transferred / call_ended
 - agent_state_transition (debug, sampled)

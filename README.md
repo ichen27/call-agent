@@ -102,9 +102,15 @@ Outbox worker notes:
 - Transport options:
   - `OUTBOX_PUBLISH_TRANSPORT=stdout` (default)
   - `OUTBOX_PUBLISH_TRANSPORT=webhook` with `OUTBOX_WEBHOOK_URL` and optional `OUTBOX_WEBHOOK_AUTH_BEARER`
+  - `OUTBOX_PUBLISH_TRANSPORT=ws` with `OUTBOX_REALTIME_PUBLISH_URL` (default `http://localhost:3000/api/internal/realtime/publish`)
   - Optional webhook timeout: `OUTBOX_WEBHOOK_TIMEOUT_MS` (default `5000`)
+  - Optional ws publish timeout: `OUTBOX_REALTIME_TIMEOUT_MS` (default `5000`)
 - Retry/dead-letter controls:
   - `OUTBOX_MAX_ATTEMPTS` (default `5`)
   - `OUTBOX_BASE_DELAY_MS` (default `1000`)
   - `OUTBOX_MAX_DELAY_MS` (default `60000`)
 - Optional worker scope: `OUTBOX_STORE_ID=<store-id>` to process one store.
+
+Realtime gateway:
+- WebSocket endpoint: `/ws?token=<jwt>&store_id=<store-id>`
+- Internal publish endpoint (worker target): `POST /api/internal/realtime/publish` (protected by `INTERNAL_API_KEY` when set)
