@@ -18,6 +18,7 @@
 - Outbox worker entrypoint (`npm run worker:outbox`) for pending->sent flow in postgres mode.
 - Outbox publisher abstraction (`src/workers/publishers.ts`) with stdout transport placeholder.
 - Store factory selection layer (`src/store/factory.ts`) and tests for backend selection behavior (`tests/storeFactory.test.ts`).
+- Postgres repository integration test suite (`tests/postgresStore.integration.test.ts`) for idempotency, transitions, replay, and outbox state updates.
 
 ### Changed
 
@@ -27,6 +28,7 @@
 - API request path, order service, and voice tool/state-machine flow now use async repository contracts.
 - `STORE_BACKEND=postgres` is now supported by the HTTP app runtime (with `DATABASE_URL`).
 - Outbox worker flow now marks each event as `SENT` or `FAILED` based on per-event publish result.
+- API routing now uses centralized async error capture and shared error middleware for safer async failure handling.
 
 ### Fixed
 

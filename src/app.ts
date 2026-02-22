@@ -6,6 +6,8 @@ import { safeLog } from './logger.js';
 import { VoiceTools } from './voice/tools.js';
 import { handleCallerUtterance } from './voice/stateMachine.js';
 import { createRepository } from './store/factory.js';
+import { asyncRoute } from './http/asyncRoute.js';
+import { errorMiddleware } from './http/errorMiddleware.js';
 
 const statusSchema = z.enum(['NEW', 'ACCEPTED', 'IN_PROGRESS', 'READY', 'COMPLETED', 'REJECTED', 'CANCELED']);
 const modeSchema = z.enum(['OPEN', 'BUSY', 'CLOSED']);
@@ -44,27 +46,30 @@ export function createApp() {
     res.json({ ok: true, service: 'call-agent', backend });
   });
 
-  app.get('/api/stores/:storeId/menu', async (req, res) => {
-    res.json({ items: await db.getMenu(req.params.storeId) });
-  });
+  app.get('/api/stores/:storeId/menu', asyncRoute(async (req, res) => {
+    const storeId = z.string().parse(req.params.storeId);
+    res.json({ items: await db.getMenu(storeId) });
+  }));
 
-  app.patch('/api/menu/items/:itemId/availability', async (req, res) => {
+  app.patch('/api/menu/items/:itemId/availability', asyncRoute(async (req, res) => {
     const body = z.object({ is_available: z.boolean() }).safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: body.error.flatten() });
-    const item = await db.setItemAvailability(req.params.itemId, body.data.is_available);
+    const itemId = z.string().parse(req.params.itemId);
+    const item = await db.setItemAvailability(itemId, body.data.is_available);
     if (!item) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'item not found' } });
     res.json({ id: item.id, is_available: item.isAvailable });
-  });
+  }));
 
-  app.patch('/api/stores/:storeId/mode', async (req, res) => {
+  app.patch('/api/stores/:storeId/mode', asyncRoute(async (req, res) => {
     const body = z.object({ mode: modeSchema }).safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: body.error.flatten() });
-    const mode = await db.setStoreMode(req.params.storeId, body.data.mode as StoreMode);
+    const storeId = z.string().parse(req.params.storeId);
+    const mode = await db.setStoreMode(storeId, body.data.mode as StoreMode);
     if (!mode) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'store not found' } });
     res.json({ mode });
-  });
+  }));
 
-  app.post('/api/orders', async (req, res) => {
+  app.post('/api/orders', asyncRoute(async (req, res) => {
     const idempotencyKey = req.header('Idempotency-Key');
     if (!idempotencyKey) return res.status(400).json({ error: { code: 'MISSING_IDEMPOTENCY_KEY' } });
     const body = createOrderSchema.safeParse(req.body);
@@ -102,9 +107,9 @@ export function createApp() {
 
     safeLog('info', 'order created', { request_id: req.header('x-request-id'), order_id: order.id, store_id: order.storeId });
     res.status(201).json({ id: order.id, order_number: order.orderNumber, status: order.status, created_at: order.createdAt });
-  });
+  }));
 
-  app.get('/api/orders', async (req, res) => {
+  app.get('/api/orders', asyncRoute(async (req, res) => {
     const storeId = z.string().parse(req.query.store_id);
     const statuses =
       typeof req.query.status === 'string'
@@ -116,48 +121,43 @@ export function createApp() {
         : undefined;
     const orders = await db.listOrders(storeId, statuses);
     res.json({ orders, next_cursor: null });
-  });
+  }));
 
-  app.get('/api/orders/:orderId', async (req, res) => {
-    const order = await db.getOrderById(req.params.orderId);
+  app.get('/api/orders/:orderId', asyncRoute(async (req, res) => {
+    const orderId = z.string().parse(req.params.orderId);
+    const order = await db.getOrderById(orderId);
     if (!order) {
       return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'order not found' } });
     }
     const events = await db.getEventsForOrder(order.id);
     res.json({ order, events });
-  });
+  }));
 
-  app.patch('/api/orders/:orderId', async (req, res) => {
+  app.patch('/api/orders/:orderId', asyncRoute(async (req, res) => {
     const body = z.object({ status: statusSchema }).safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: body.error.flatten() });
+    const orderId = z.string().parse(req.params.orderId);
+    const order = await orderService.updateStatus(orderId, body.data.status as OrderStatus, req.header('x-user-id') ?? 'staff');
+    res.json({ id: order.id, status: order.status });
+  }));
 
-    try {
-      const order = await orderService.updateStatus(req.params.orderId, body.data.status as OrderStatus, req.header('x-user-id') ?? 'staff');
-      res.json({ id: order.id, status: order.status });
-    } catch (error) {
-      return res.status(400).json({ error: { code: 'INVALID_STATUS_CHANGE', message: (error as Error).message } });
-    }
-  });
-
-  app.post('/api/orders/:orderId/ack', async (req, res) => {
+  app.post('/api/orders/:orderId/ack', asyncRoute(async (req, res) => {
     const body = z.object({ client_id: z.string().min(1) }).safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: body.error.flatten() });
-    try {
-      await orderService.ackOrder(req.params.orderId, body.data.client_id);
-      res.json({ acked: true });
-    } catch {
-      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'order not found' } });
-    }
-  });
+    const orderId = z.string().parse(req.params.orderId);
+    await orderService.ackOrder(orderId, body.data.client_id);
+    res.json({ acked: true });
+  }));
 
-  app.get('/api/stores/:storeId/events', async (req, res) => {
+  app.get('/api/stores/:storeId/events', asyncRoute(async (req, res) => {
     const since = Number(req.query.since_id ?? 0);
-    const events = await db.getEventsSince(req.params.storeId, Number.isNaN(since) ? 0 : since);
+    const storeId = z.string().parse(req.params.storeId);
+    const events = await db.getEventsSince(storeId, Number.isNaN(since) ? 0 : since);
     const next = events.length ? events[events.length - 1]?.id : since;
     res.json({ events, next_since_id: next });
-  });
+  }));
 
-  app.get('/api/internal/outbox', async (req, res) => {
+  app.get('/api/internal/outbox', asyncRoute(async (req, res) => {
     const parsed = z
       .object({
         store_id: z.string().optional(),
@@ -168,9 +168,9 @@ export function createApp() {
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     const events = await db.listOutbox(parsed.data.store_id, parsed.data.status);
     res.json({ events });
-  });
+  }));
 
-  app.post('/api/internal/outbox/publish', async (req, res) => {
+  app.post('/api/internal/outbox/publish', asyncRoute(async (req, res) => {
     const parsed = z
       .object({
         store_id: z.string().optional(),
@@ -181,9 +181,9 @@ export function createApp() {
 
     const result = await db.publishOutbox(parsed.data.store_id, parsed.data.limit ?? 100);
     res.json(result);
-  });
+  }));
 
-  app.post('/api/telephony/inbound', async (req, res) => {
+  app.post('/api/telephony/inbound', asyncRoute(async (req, res) => {
     const parsed = z
       .object({
         call_id: z.string().min(1),
@@ -224,9 +224,9 @@ export function createApp() {
       handoff: step.session.handoff,
       created_order_id: step.session.createdOrderId
     });
-  });
+  }));
 
-  app.post('/api/telephony/status', async (req, res) => {
+  app.post('/api/telephony/status', asyncRoute(async (req, res) => {
     const parsed = z
       .object({
         call_id: z.string().min(1),
@@ -240,7 +240,9 @@ export function createApp() {
       await db.setCallSession(session);
     }
     res.json({ ok: true });
-  });
+  }));
+
+  app.use(errorMiddleware);
 
   return { app, db, orderService };
 }

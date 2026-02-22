@@ -129,3 +129,20 @@
   - Retry policy is still minimal and needs dedicated backoff logic in a later phase.
 - Rollback:
   - Revert to batch mark-sent worker behavior if per-event processing causes operational issues in early environments.
+
+## 2026-02-22 - Add Centralized Async Error Middleware and DB-Gated Integration Tests (ADR-0008)
+
+- Status: accepted
+- Context:
+  - Express 4 async handlers can leak unhandled promise rejections without explicit wrapper usage.
+  - Postgres runtime support needs integration evidence while keeping local workflows optional.
+- Decision:
+  - Introduce `asyncRoute` wrapper and shared `errorMiddleware` for centralized API error mapping/logging.
+  - Add `test:integration` suite for `PostgresStore`, gated by `DATABASE_URL` presence.
+- Rationale:
+  - Improves runtime safety under async DB failures and makes persistence behavior regression-testable.
+- Consequences:
+  - Error code mapping is centralized and easier to evolve.
+  - Full API integration testing still requires network-enabled environments due sandbox port restrictions.
+- Rollback:
+  - Revert wrapper/middleware if route-level handling is preferred, while preserving equivalent rejection safety.

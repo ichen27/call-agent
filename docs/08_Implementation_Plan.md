@@ -111,7 +111,7 @@
   - Express request flow converted to async repository calls.
   - Postgres backend enabled for HTTP runtime via `STORE_BACKEND=postgres`.
 - Next:
-  - Add Postgres-backed API integration tests (requires DB test harness).
+  - Extend Postgres integration tests from repository-level to full API route coverage.
   - Harden failure handling and retry semantics around async DB operations.
 
 ---
