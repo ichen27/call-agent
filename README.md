@@ -32,6 +32,19 @@ curl -X POST http://localhost:3000/api/telephony/inbound \
 Repeat `utterance` values in sequence:
 `pickup order` → `<name>` → `<menu item>` → `done` → `yes`.
 
+## Auth (current)
+
+- Default local mode: `AUTH_REQUIRED=false` (protected routes still run without token).
+- Enforced mode: set `AUTH_REQUIRED=true` and `JWT_SECRET`.
+
+Quick login example:
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"store_id":"store-1","email":"manager@store.test","password":"password123"}'
+```
+
 ## Checks
 
 ```bash

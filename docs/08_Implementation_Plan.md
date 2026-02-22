@@ -24,6 +24,14 @@
 
 **Dependencies:** store bootstrap data.
 
+**Status (current):**
+- Done:
+  - Async API error middleware/wrapping added.
+  - JWT login/me endpoints and role-based route guard middleware added (staff/manager).
+- Next:
+  - Persisted staff user storage and secure password hashing workflow.
+  - Enforce `AUTH_REQUIRED=true` in non-local environments and add route-level integration tests.
+
 ---
 
 ## Milestone 2 — Realtime + Staff UI (Instant visibility)

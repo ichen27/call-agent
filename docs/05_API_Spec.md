@@ -6,6 +6,9 @@
 - Service auth: Voice Service uses service token or internal network policy
 - Idempotency: `Idempotency-Key` header on `POST /orders`
 - Errors: `{ "error": { "code": "...", "message": "...", "details": ... } }`
+- Runtime auth mode:
+  - `AUTH_REQUIRED=false` (default): missing bearer token allowed on protected routes for local/dev compatibility.
+  - `AUTH_REQUIRED=true`: protected routes enforce bearer token + role.
 
 ### GET `/health`
 **Response**

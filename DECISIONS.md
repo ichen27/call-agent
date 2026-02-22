@@ -164,3 +164,21 @@
   - Requires future operational metrics/alerts on dead-letter backlog.
 - Rollback:
   - Disable due-time filtering and revert to immediate retry loop if staged rollout shows unacceptable latency.
+
+## 2026-02-22 - Introduce JWT Auth and RBAC with Configurable Enforcement Mode (ADR-0010)
+
+- Status: accepted
+- Context:
+  - API now has sensitive staff/manager operations but lacked auth primitives and role checks.
+  - Existing local workflow and sandbox tests need minimal friction while security features are being integrated.
+- Decision:
+  - Add JWT login/me endpoints and request auth middleware.
+  - Add route-level RBAC guards (`STAFF`, `MANAGER`) for protected operations.
+  - Make hard enforcement configurable with `AUTH_REQUIRED` (default false for local compatibility).
+- Rationale:
+  - Establishes production auth path now while allowing incremental rollout and test continuity.
+- Consequences:
+  - Security posture depends on environment configuration until enforced by default outside local.
+  - Follow-up needed for persistent users + hardened credential storage.
+- Rollback:
+  - Keep middleware loaded but disable enforcement (`AUTH_REQUIRED=false`) while fixing auth regressions.

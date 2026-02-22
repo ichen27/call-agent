@@ -8,6 +8,8 @@ import { handleCallerUtterance } from './voice/stateMachine.js';
 import { createRepository } from './store/factory.js';
 import { asyncRoute } from './http/asyncRoute.js';
 import { errorMiddleware } from './http/errorMiddleware.js';
+import { AuthService } from './auth/service.js';
+import { authenticateRequest, requireRole } from './auth/middleware.js';
 
 const statusSchema = z.enum(['NEW', 'ACCEPTED', 'IN_PROGRESS', 'READY', 'COMPLETED', 'REJECTED', 'CANCELED']);
 const modeSchema = z.enum(['OPEN', 'BUSY', 'CLOSED']);
@@ -39,19 +41,46 @@ export function createApp() {
   const { repository: db, backend } = createRepository();
   const orderService = new OrderService(db);
   const voiceTools = new VoiceTools(db, orderService);
+  const authService = new AuthService();
 
   app.use(express.json());
+  app.use(authenticateRequest(authService));
 
   app.get('/health', (_req, res) => {
     res.json({ ok: true, service: 'call-agent', backend });
   });
+
+  app.post('/api/auth/login', asyncRoute(async (req, res) => {
+    const parsed = z
+      .object({
+        store_id: z.string().min(1),
+        email: z.string().email(),
+        password: z.string().min(1)
+      })
+      .safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    const loggedIn = authService.login(parsed.data.store_id, parsed.data.email, parsed.data.password);
+    if (!loggedIn) {
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'invalid credentials' } });
+    }
+
+    res.json({ token: loggedIn.token, user: { id: loggedIn.user.userId, role: loggedIn.user.role, store_id: loggedIn.user.storeId, email: loggedIn.user.email } });
+  }));
+
+  app.get('/api/auth/me', asyncRoute(async (req, res) => {
+    if (!req.auth) {
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'missing bearer token' } });
+    }
+    res.json({ id: req.auth.userId, role: req.auth.role, store_id: req.auth.storeId, email: req.auth.email });
+  }));
 
   app.get('/api/stores/:storeId/menu', asyncRoute(async (req, res) => {
     const storeId = z.string().parse(req.params.storeId);
     res.json({ items: await db.getMenu(storeId) });
   }));
 
-  app.patch('/api/menu/items/:itemId/availability', asyncRoute(async (req, res) => {
+  app.patch('/api/menu/items/:itemId/availability', requireRole('MANAGER'), asyncRoute(async (req, res) => {
     const body = z.object({ is_available: z.boolean() }).safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: body.error.flatten() });
     const itemId = z.string().parse(req.params.itemId);
@@ -60,7 +89,7 @@ export function createApp() {
     res.json({ id: item.id, is_available: item.isAvailable });
   }));
 
-  app.patch('/api/stores/:storeId/mode', asyncRoute(async (req, res) => {
+  app.patch('/api/stores/:storeId/mode', requireRole('MANAGER'), asyncRoute(async (req, res) => {
     const body = z.object({ mode: modeSchema }).safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: body.error.flatten() });
     const storeId = z.string().parse(req.params.storeId);
@@ -133,15 +162,16 @@ export function createApp() {
     res.json({ order, events });
   }));
 
-  app.patch('/api/orders/:orderId', asyncRoute(async (req, res) => {
+  app.patch('/api/orders/:orderId', requireRole('STAFF'), asyncRoute(async (req, res) => {
     const body = z.object({ status: statusSchema }).safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: body.error.flatten() });
     const orderId = z.string().parse(req.params.orderId);
-    const order = await orderService.updateStatus(orderId, body.data.status as OrderStatus, req.header('x-user-id') ?? 'staff');
+    const actorId = req.auth?.userId ?? req.header('x-user-id') ?? 'staff';
+    const order = await orderService.updateStatus(orderId, body.data.status as OrderStatus, actorId);
     res.json({ id: order.id, status: order.status });
   }));
 
-  app.post('/api/orders/:orderId/ack', asyncRoute(async (req, res) => {
+  app.post('/api/orders/:orderId/ack', requireRole('STAFF'), asyncRoute(async (req, res) => {
     const body = z.object({ client_id: z.string().min(1) }).safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: body.error.flatten() });
     const orderId = z.string().parse(req.params.orderId);

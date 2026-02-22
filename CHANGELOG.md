@@ -22,6 +22,8 @@
 - Outbox batch runner policy module (`src/workers/outboxRunner.ts`) with exponential retry scheduling and dead-letter routing.
 - Outbox worker policy tests (`tests/outboxRunner.test.ts`).
 - Follow-up migration (`migrations/0002_outbox_backoff.sql`) to add `next_attempt_at` scheduling field for existing databases.
+- JWT auth service + middleware (`/api/auth/login`, `/api/auth/me`) with role-aware route protection scaffolding.
+- Auth service tests (`tests/authService.test.ts`).
 
 ### Changed
 
@@ -33,6 +35,7 @@
 - Outbox worker flow now marks each event as `SENT` or `FAILED` based on per-event publish result.
 - API routing now uses centralized async error capture and shared error middleware for safer async failure handling.
 - Outbox storage/worker flow now supports `DEAD_LETTER` status and due-time filtering (`next_attempt_at`) for retry control.
+- Protected order/mode/menu routes now support RBAC enforcement (`STAFF`/`MANAGER`) with configurable `AUTH_REQUIRED` mode.
 
 ### Fixed
 
