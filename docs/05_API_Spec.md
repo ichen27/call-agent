@@ -7,6 +7,12 @@
 - Idempotency: `Idempotency-Key` header on `POST /orders`
 - Errors: `{ "error": { "code": "...", "message": "...", "details": ... } }`
 
+### GET `/health`
+**Response**
+```json
+{ "ok": true, "service": "call-agent", "backend": "memory" }
+```
+
 ---
 
 ## Auth

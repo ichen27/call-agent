@@ -13,11 +13,16 @@
 - Order detail endpoint implementation: `GET /api/orders/{order_id}` returning order + associated event history.
 - In-memory outbox surface (`/api/internal/outbox`, `/api/internal/outbox/publish`) to model outbox lifecycle before persistent infrastructure.
 - Unit tests for outbox creation and publish behavior in `tests/memoryStore.test.ts`.
+- Postgres migration scaffolding (`migrations/0001_init.sql`, `npm run migrate`).
+- Async Postgres repository implementation scaffold (`src/store/postgres.ts`) with transactional create/idempotency/event/outbox methods for upcoming runtime cutover.
+- Outbox worker entrypoint (`npm run worker:outbox`) for pending->sent flow in postgres mode.
+- Store factory selection layer (`src/store/factory.ts`) and tests for backend selection behavior (`tests/storeFactory.test.ts`).
 
 ### Changed
 
 - `AGENTS.md` now reflects repository truth, command hooks, task modes, and stop-and-ask gates for this codebase.
 - Storage usage in services is now interface-driven (`AppRepository`) instead of hard-coupled to `MemoryStore`, enabling cleaner Postgres cutover.
+- Health endpoint now includes backend metadata.
 
 ### Fixed
 

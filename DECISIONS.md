@@ -77,3 +77,22 @@
   - Clearer boundaries for persistence and worker phases.
 - Rollback:
   - Revert to direct `MemoryStore` coupling if adapter strategy proves unnecessary.
+
+## 2026-02-22 - Stage Postgres as Async Adapter Before App Runtime Switch (ADR-0005)
+
+- Status: accepted
+- Context:
+  - Current Express handlers and service flow are synchronous and memory-backed.
+  - Postgres operations are naturally async and require request path changes to fully cut over.
+- Decision:
+  - Implement Postgres repository, migration runner, and outbox worker entrypoint now.
+  - Keep HTTP runtime on memory backend until async handler conversion is complete.
+  - Fail fast if `STORE_BACKEND=postgres` is selected for the current sync app path.
+- Rationale:
+  - Preserves delivery momentum while reducing risk of a large unsafe one-shot conversion.
+  - Enables early schema validation and worker development in parallel.
+- Consequences:
+  - Temporary dual-backend state with postgres only partially wired.
+  - Additional follow-up needed for complete runtime cutover.
+- Rollback:
+  - Remove postgres scaffolding and revert to memory-only workflow if deployment constraints change.

@@ -1,11 +1,11 @@
 import express from 'express';
 import { z } from 'zod';
-import { MemoryStore } from './store/memory.js';
 import { OrderService } from './orderService.js';
 import type { OrderStatus, StoreMode } from './types.js';
 import { safeLog } from './logger.js';
 import { VoiceTools } from './voice/tools.js';
 import { handleCallerUtterance } from './voice/stateMachine.js';
+import { createRepository } from './store/factory.js';
 
 const statusSchema = z.enum(['NEW', 'ACCEPTED', 'IN_PROGRESS', 'READY', 'COMPLETED', 'REJECTED', 'CANCELED']);
 const modeSchema = z.enum(['OPEN', 'BUSY', 'CLOSED']);
@@ -34,14 +34,14 @@ const createOrderSchema = z.object({
 
 export function createApp() {
   const app = express();
-  const db = new MemoryStore();
+  const { repository: db, backend } = createRepository();
   const orderService = new OrderService(db);
   const voiceTools = new VoiceTools(db, orderService);
 
   app.use(express.json());
 
   app.get('/health', (_req, res) => {
-    res.json({ ok: true, service: 'call-agent' });
+    res.json({ ok: true, service: 'call-agent', backend });
   });
 
   app.get('/api/stores/:storeId/menu', (req, res) => {

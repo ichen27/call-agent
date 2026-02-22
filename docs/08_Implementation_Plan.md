@@ -103,6 +103,15 @@
 
 **Dependencies:** DB provisioning + migration strategy.
 
+**Status (current):**
+- Done:
+  - Repository interface added and memory store migrated to interface.
+  - Postgres store async implementation scaffolded with transactional order/idempotency/event/outbox behavior.
+  - Migration runner + initial SQL migration file added.
+- Next:
+  - Cut Express request flow from sync to async repository calls.
+  - Enable postgres backend for app runtime (not worker-only).
+
 ---
 
 ## Milestone 8 — Outbox Worker + Delivery Reliability
@@ -112,6 +121,12 @@
 - Add failure visibility and operational controls for backlog management
 
 **Dependencies:** persistent outbox table + event transport (Redis/queue).
+
+**Status (current):**
+- Done:
+  - Outbox worker entrypoint added for mark-sent loop step.
+- Next:
+  - Add transport publishing (Redis/queue), retries/backoff policy, and failure alerts.
 
 ---
 
