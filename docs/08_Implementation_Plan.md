@@ -141,8 +141,10 @@
   - Outbox worker entrypoint added for mark-sent loop step.
   - Worker now processes pending rows per-event and marks sent/failed state explicitly.
   - Retry/dead-letter policy added with exponential backoff scheduling metadata.
+  - Transport abstraction now supports webhook publishing (`OUTBOX_PUBLISH_TRANSPORT=webhook`) with timeout/auth options.
+  - Worker emits backlog metrics and dead-letter alerts for operational visibility.
 - Next:
-  - Add transport publishing (Redis/queue) and failure alerts/metrics.
+  - Add Redis/queue publisher implementation and delivery acknowledgement contract.
 
 ---
 

@@ -11,6 +11,8 @@
 ### Key log events
 - order_created / order_create_failed
 - outbox_publish_attempt / success / failed
+- outbox_worker_result (selected/sent/failed/dead-lettered + backlog before/after)
+- outbox_dead_letter_alert
 - ws_client_connected / disconnected
 - call_started / call_transferred / call_ended
 - agent_state_transition (debug, sampled)

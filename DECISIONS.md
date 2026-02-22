@@ -219,3 +219,21 @@
   - Additional route coverage is needed as new store-bound endpoints are added.
 - Rollback:
   - Disable store-scope checks while retaining role gates if rollout uncovers incompatible client assumptions.
+
+## 2026-02-22 - Add Webhook Outbox Transport and Structured Worker Backlog Metrics (ADR-0013)
+
+- Status: accepted
+- Context:
+  - Outbox worker had retry/dead-letter state but only stdout placeholder publishing and limited operational visibility.
+- Decision:
+  - Add env-driven transport selection for outbox publisher (`stdout` or `webhook`).
+  - Add webhook transport controls: URL, timeout, optional bearer auth.
+  - Emit structured worker result logs with backlog-before/backlog-after counts and explicit dead-letter alert events.
+- Rationale:
+  - Enables immediate external integration without adding new runtime dependencies.
+  - Improves operator visibility into backlog growth and dead-letter incidents.
+- Consequences:
+  - Webhook delivery semantics are at-least-once and depend on receiver idempotency.
+  - Queue-native transports (Redis/pubsub) remain a follow-up for higher throughput fan-out.
+- Rollback:
+  - Force `OUTBOX_PUBLISH_TRANSPORT=stdout` and continue using retry/dead-letter state machine.

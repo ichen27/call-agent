@@ -92,9 +92,14 @@ STORE_BACKEND=postgres DATABASE_URL=postgres://<user>:<pass>@<host>:5432/<db> np
 ```
 
 Outbox worker notes:
-- Worker now publishes pending outbox events one-by-one and marks each as `SENT` or `FAILED`.
+- Worker now publishes due outbox events one-by-one and marks each as `SENT`, `FAILED`, or `DEAD_LETTER`.
 - For local failure simulation, set `OUTBOX_FAIL_EVENT_TYPE=<EventType>` before running `worker:outbox`.
+- Transport options:
+  - `OUTBOX_PUBLISH_TRANSPORT=stdout` (default)
+  - `OUTBOX_PUBLISH_TRANSPORT=webhook` with `OUTBOX_WEBHOOK_URL` and optional `OUTBOX_WEBHOOK_AUTH_BEARER`
+  - Optional webhook timeout: `OUTBOX_WEBHOOK_TIMEOUT_MS` (default `5000`)
 - Retry/dead-letter controls:
   - `OUTBOX_MAX_ATTEMPTS` (default `5`)
   - `OUTBOX_BASE_DELAY_MS` (default `1000`)
   - `OUTBOX_MAX_DELAY_MS` (default `60000`)
+- Optional worker scope: `OUTBOX_STORE_ID=<store-id>` to process one store.
