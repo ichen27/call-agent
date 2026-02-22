@@ -56,6 +56,7 @@
   5) Verify staff UI receives WS event and renders
 - Staff workflow:
   - login → ack → accept → in progress → ready → completed
+  - websocket disconnect/reconnect reflects latest order state after replay sync
 
 ---
 

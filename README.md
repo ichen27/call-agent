@@ -75,6 +75,18 @@ npm test
 npm run build
 ```
 
+## Staff Web App (MVP shell)
+
+```bash
+cd apps/staff-web
+npm install
+npm run dev
+```
+
+Default dev proxy targets:
+- API: `http://localhost:3000`
+- Realtime WS: `ws://localhost:3000`
+
 ## Persistence modes
 
 Memory backend remains default for local quickstart:

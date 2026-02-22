@@ -289,3 +289,19 @@
   - Horizontal scaling and shared connection state need follow-up architecture (Redis/broker) post-pilot.
 - Rollback:
   - Switch `OUTBOX_PUBLISH_TRANSPORT` back to `stdout` or `webhook` and disable websocket client usage.
+
+## 2026-02-22 - Staff UI MVP Stack and Scope (ADR-0017)
+
+- Status: accepted
+- Context:
+  - Realtime and auth backend paths now exist, but operator workflow requires a concrete staff-facing app.
+- Decision:
+  - Use React + Vite + TypeScript for MVP staff UI under `apps/staff-web`.
+  - MVP shell includes login, live order board, websocket connection indicator, ack/status actions, and manager mode/item controls.
+- Rationale:
+  - Fastest path to a maintainable single-store pilot frontend with straightforward local/staging deployment.
+- Consequences:
+  - Frontend build/test lifecycle is currently separate from root backend CI scripts.
+  - Reconnect replay cursor logic remains a follow-up hardening item.
+- Rollback:
+  - Keep backend realtime endpoints and temporarily revert staff operations to API/manual scripts if UI regressions appear.

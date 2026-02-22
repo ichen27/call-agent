@@ -34,6 +34,7 @@
 - Telephony webhook HMAC signature enforcement (`TELEPHONY_WEBHOOK_SECRET`, `x-telephony-signature`).
 - Native realtime websocket gateway (`/ws`) with JWT store-scoped connections.
 - Internal realtime publish endpoint and outbox `ws` transport mode for worker-to-gateway fanout.
+- Staff web app MVP shell (`apps/staff-web`) with login, live orders board, websocket updates, status/ack actions, and manager controls.
 
 ### Changed
 

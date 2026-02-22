@@ -62,9 +62,10 @@
 - Done:
   - Native WebSocket gateway endpoint added (`/ws?token=...&store_id=...`) with JWT store-scope checks.
   - Internal realtime publish endpoint added (`/api/internal/realtime/publish`) for event fanout.
+  - Staff Web App shell added (`apps/staff-web`, React+Vite+TS) with login, live orders board, status/ack actions, mode/item controls, and websocket connection status.
 - Next:
-  - Build staff web app screens + websocket client + reconnect catch-up flow.
-  - Add end-to-end validation from outbox worker publish to connected UI client.
+  - Add reconnect catch-up flow using `since_id` replay and unread/event cursor persistence.
+  - Add end-to-end validation from outbox worker publish to connected browser client.
 
 ---
 
