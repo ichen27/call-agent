@@ -44,6 +44,21 @@ export interface OrderEvent {
   createdAt: string;
 }
 
+export type OutboxStatus = 'PENDING' | 'SENT' | 'FAILED';
+
+export interface OutboxEvent {
+  id: number;
+  storeId: string;
+  aggregateType: 'ORDER';
+  aggregateId: string;
+  eventType: string;
+  payload: Record<string, unknown>;
+  status: OutboxStatus;
+  attempts: number;
+  createdAt: string;
+  sentAt?: string;
+}
+
 export interface CallSession {
   callId: string;
   storeId: string;

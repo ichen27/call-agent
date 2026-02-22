@@ -39,3 +39,22 @@
   - No true multi-instance consistency, no resilient event delivery, and no production-grade replay behavior.
 - Rollback:
   - Replace `MemoryStore` behind existing service interfaces with persistent adapters (Postgres + outbox + pub/sub) while preserving endpoint contracts.
+
+## 2026-02-22 - Add In-Memory Outbox Modeling Endpoints Before Worker Integration (ADR-0003)
+
+- Status: accepted
+- Context:
+  - The target architecture requires transactional outbox publication, but persistent DB/worker layers are not implemented yet.
+  - We need a concrete outbox lifecycle shape now to guide later Postgres + worker migration.
+- Decision:
+  - Introduce outbox event records inside `MemoryStore` for each order-domain event.
+  - Add internal/debug endpoints to inspect and publish pending outbox events:
+    - `GET /api/internal/outbox`
+    - `POST /api/internal/outbox/publish`
+- Rationale:
+  - Preserves forward-compatible event model and testable behavior without adding infrastructure dependencies in this phase.
+- Consequences:
+  - Outbox behavior is process-local and non-durable.
+  - Internal endpoints are not production-safe and must be protected or removed in hardened environments.
+- Rollback:
+  - Remove internal endpoints and route publication through dedicated worker once persistent outbox storage is in place.

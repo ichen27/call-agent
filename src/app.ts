@@ -118,6 +118,15 @@ export function createApp() {
     res.json({ orders, next_cursor: null });
   });
 
+  app.get('/api/orders/:orderId', (req, res) => {
+    const order = db.getOrderById(req.params.orderId);
+    if (!order) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'order not found' } });
+    }
+    const events = db.getEventsForOrder(order.id);
+    res.json({ order, events });
+  });
+
   app.patch('/api/orders/:orderId', (req, res) => {
     const body = z.object({ status: statusSchema }).safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: body.error.flatten() });
@@ -146,6 +155,32 @@ export function createApp() {
     const events = db.getEventsSince(req.params.storeId, Number.isNaN(since) ? 0 : since);
     const next = events.length ? events[events.length - 1]?.id : since;
     res.json({ events, next_since_id: next });
+  });
+
+  app.get('/api/internal/outbox', (req, res) => {
+    const parsed = z
+      .object({
+        store_id: z.string().optional(),
+        status: z.enum(['PENDING', 'SENT', 'FAILED']).optional()
+      })
+      .safeParse(req.query);
+
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const events = db.listOutbox(parsed.data.store_id, parsed.data.status);
+    res.json({ events });
+  });
+
+  app.post('/api/internal/outbox/publish', (req, res) => {
+    const parsed = z
+      .object({
+        store_id: z.string().optional(),
+        limit: z.number().int().positive().max(1000).optional()
+      })
+      .safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    const result = db.publishOutbox(parsed.data.store_id, parsed.data.limit ?? 100);
+    res.json(result);
   });
 
   app.post('/api/telephony/inbound', (req, res) => {

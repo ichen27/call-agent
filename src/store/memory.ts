@@ -1,4 +1,4 @@
-import type { CallSession, MenuItem, Order, OrderEvent, OrderItemInput, OrderStatus, StoreMode } from '../types.js';
+import type { CallSession, MenuItem, Order, OrderEvent, OrderItemInput, OrderStatus, OutboxEvent, OutboxStatus, StoreMode } from '../types.js';
 
 interface CreateOrderInput {
   storeId: string;
@@ -24,6 +24,7 @@ const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 export class MemoryStore {
   private orderSeq = 1000;
   private eventSeq = 1;
+  private outboxSeq = 1;
 
   readonly stores = new Map<string, { id: string; mode: StoreMode; defaultPrepMins: number }>([
     ['store-1', { id: 'store-1', mode: 'OPEN', defaultPrepMins: 20 }]
@@ -36,6 +37,7 @@ export class MemoryStore {
 
   readonly orders = new Map<string, Order>();
   readonly events: OrderEvent[] = [];
+  readonly outboxEvents: OutboxEvent[] = [];
   readonly idempotency = new Map<string, string>();
   readonly callSessions = new Map<string, CallSession>();
 
@@ -111,6 +113,14 @@ export class MemoryStore {
     });
   }
 
+  getOrderById(orderId: string): Order | undefined {
+    return this.orders.get(orderId);
+  }
+
+  getEventsForOrder(orderId: string): OrderEvent[] {
+    return this.events.filter((event) => event.orderId === orderId);
+  }
+
   updateOrderStatus(orderId: string, nextStatus: OrderStatus, actorId: string): Order {
     const order = this.orders.get(orderId);
     if (!order) throw new Error('order not found');
@@ -141,15 +151,53 @@ export class MemoryStore {
     return this.events.filter((event) => event.storeId === storeId && event.id > sinceId);
   }
 
+  listOutbox(storeId?: string, status?: OutboxStatus): OutboxEvent[] {
+    return this.outboxEvents.filter((event) => {
+      const storeMatch = !storeId || event.storeId === storeId;
+      const statusMatch = !status || event.status === status;
+      return storeMatch && statusMatch;
+    });
+  }
+
+  publishOutbox(storeId?: string, limit = 100): { publishedCount: number; events: OutboxEvent[] } {
+    const selected = this.outboxEvents
+      .filter((event) => event.status === 'PENDING' && (!storeId || event.storeId === storeId))
+      .slice(0, limit);
+
+    const now = new Date().toISOString();
+    for (const event of selected) {
+      event.status = 'SENT';
+      event.attempts += 1;
+      event.sentAt = now;
+    }
+
+    return { publishedCount: selected.length, events: selected };
+  }
+
   private appendEvent(storeId: string, orderId: string, eventType: string, payload: Record<string, unknown>): void {
-    this.events.push({
+    const event: OrderEvent = {
       id: this.eventSeq,
       storeId,
       orderId,
       eventType,
       payload,
       createdAt: new Date().toISOString()
+    };
+
+    this.events.push(event);
+    this.outboxEvents.push({
+      id: this.outboxSeq,
+      storeId,
+      aggregateType: 'ORDER',
+      aggregateId: orderId,
+      eventType,
+      payload,
+      status: 'PENDING',
+      attempts: 0,
+      createdAt: event.createdAt
     });
+
     this.eventSeq += 1;
+    this.outboxSeq += 1;
   }
 }

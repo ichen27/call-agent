@@ -10,6 +10,9 @@
 - Initial test coverage for order idempotency/status transitions and telephony confirmation duplicate protection.
 - Agent workflow scaffolding: `agents/` role routing + handoff contract.
 - Prompt templates under `prompts/` for task briefs, implementation plans, risk checks, reviews, and PR summaries.
+- Order detail endpoint implementation: `GET /api/orders/{order_id}` returning order + associated event history.
+- In-memory outbox surface (`/api/internal/outbox`, `/api/internal/outbox/publish`) to model outbox lifecycle before persistent infrastructure.
+- Unit tests for outbox creation and publish behavior in `tests/memoryStore.test.ts`.
 
 ### Changed
 

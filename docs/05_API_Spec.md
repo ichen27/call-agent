@@ -174,6 +174,25 @@ Headers:
 ### GET `/api/orders/{order_id}`
 Returns full order + items + events.
 
+**Response**
+```json
+{
+  "order": {
+    "id":"uuid",
+    "order_number":1042,
+    "status":"NEW"
+  },
+  "events": [
+    {
+      "id": 12346,
+      "event_type": "OrderCreated",
+      "payload": { "order_id":"uuid" },
+      "created_at":"2026-02-21T19:02:10-05:00"
+    }
+  ]
+}
+```
+
 ### PATCH `/api/orders/{order_id}` (STAFF+)
 **Request**
 ```json
@@ -218,6 +237,21 @@ Returns full order + items + events.
   ],
   "next_since_id": 12346
 }
+```
+
+---
+
+## Internal operations (MVP debug surface)
+
+### GET `/api/internal/outbox?store_id=...&status=PENDING|SENT|FAILED`
+Returns outbox rows for inspection in local/dev environments.
+
+### POST `/api/internal/outbox/publish`
+Marks pending outbox rows as sent.
+
+**Request**
+```json
+{ "store_id":"uuid", "limit": 100 }
 ```
 
 ### WebSocket `wss://<host>/ws?store_id=...`
