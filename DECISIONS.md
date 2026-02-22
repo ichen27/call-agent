@@ -113,3 +113,19 @@
   - Existing supertest/integration tests still need environment support and DB harness to validate postgres end-to-end.
 - Rollback:
   - Force `STORE_BACKEND=memory` in runtime configuration while retaining async interfaces.
+
+## 2026-02-22 - Process Outbox Rows Per Event with Explicit Success/Failure State (ADR-0007)
+
+- Status: accepted
+- Context:
+  - Previous worker behavior marked outbox batches as sent without transport-aware per-event handling.
+- Decision:
+  - Introduce publisher abstraction and process pending outbox rows one-by-one.
+  - Mark each event as `SENT` on publish success or `FAILED` on publish error.
+- Rationale:
+  - Establishes failure visibility and deterministic retry targets before integrating real transport.
+- Consequences:
+  - Worker throughput is currently lower than bulk updates.
+  - Retry policy is still minimal and needs dedicated backoff logic in a later phase.
+- Rollback:
+  - Revert to batch mark-sent worker behavior if per-event processing causes operational issues in early environments.

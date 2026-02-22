@@ -61,3 +61,7 @@ You can run HTTP API on postgres backend by setting:
 ```bash
 STORE_BACKEND=postgres DATABASE_URL=postgres://<user>:<pass>@<host>:5432/<db> npm run dev
 ```
+
+Outbox worker notes:
+- Worker now publishes pending outbox events one-by-one and marks each as `SENT` or `FAILED`.
+- For local failure simulation, set `OUTBOX_FAIL_EVENT_TYPE=<EventType>` before running `worker:outbox`.

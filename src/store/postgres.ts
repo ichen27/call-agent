@@ -145,6 +145,60 @@ export class PostgresStore implements AppRepository {
     return this.publishOutboxAsync(storeId, limit);
   }
 
+  async markOutboxSent(eventId: number): Promise<OutboxEvent | undefined> {
+    const result = await this.pool.query(
+      `UPDATE outbox_events
+       SET status = 'SENT', attempts = attempts + 1, sent_at = now()
+       WHERE id = $1
+       RETURNING id, store_id, aggregate_id, event_type, payload_json, status, attempts, created_at, sent_at`,
+      [eventId]
+    );
+    const row = result.rows[0];
+    if (!row) return undefined;
+    const event: OutboxEvent = {
+      id: Number(row.id),
+      storeId: String(row.store_id),
+      aggregateType: 'ORDER',
+      aggregateId: String(row.aggregate_id),
+      eventType: String(row.event_type),
+      payload: row.payload_json as Record<string, unknown>,
+      status: row.status as OutboxStatus,
+      attempts: Number(row.attempts),
+      createdAt: String(row.created_at)
+    };
+    if (row.sent_at) {
+      event.sentAt = String(row.sent_at);
+    }
+    return event;
+  }
+
+  async markOutboxFailed(eventId: number): Promise<OutboxEvent | undefined> {
+    const result = await this.pool.query(
+      `UPDATE outbox_events
+       SET status = 'FAILED', attempts = attempts + 1
+       WHERE id = $1
+       RETURNING id, store_id, aggregate_id, event_type, payload_json, status, attempts, created_at, sent_at`,
+      [eventId]
+    );
+    const row = result.rows[0];
+    if (!row) return undefined;
+    const event: OutboxEvent = {
+      id: Number(row.id),
+      storeId: String(row.store_id),
+      aggregateType: 'ORDER',
+      aggregateId: String(row.aggregate_id),
+      eventType: String(row.event_type),
+      payload: row.payload_json as Record<string, unknown>,
+      status: row.status as OutboxStatus,
+      attempts: Number(row.attempts),
+      createdAt: String(row.created_at)
+    };
+    if (row.sent_at) {
+      event.sentAt = String(row.sent_at);
+    }
+    return event;
+  }
+
   getCallSession(callId: string): Promise<CallSession | undefined> {
     return this.getCallSessionAsync(callId);
   }

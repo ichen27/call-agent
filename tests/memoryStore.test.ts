@@ -64,4 +64,40 @@ describe('memory store outbox and order detail behavior', () => {
     expect(sent).toHaveLength(1);
     expect(pending.length).toBeGreaterThan(0);
   });
+
+  it('supports explicit mark sent and mark failed transitions', async () => {
+    const store = new MemoryStore();
+    await store.createOrder({
+      storeId: 'store-1',
+      idempotencyKey: 'idem-3',
+      customerName: 'Jordan',
+      customerPhone: '+15550000002',
+      items: [
+        {
+          itemId: 'item-burrito',
+          itemNameSnapshot: 'Chicken Burrito',
+          qty: 1,
+          basePriceCents: 1299,
+          modifiersSnapshotJson: [],
+          lineTotalCents: 1299
+        }
+      ],
+      totalCents: 1299
+    });
+
+    const pending = await store.listOutbox('store-1', 'PENDING');
+    expect(pending.length).toBeGreaterThan(0);
+
+    const first = pending[0];
+    if (!first) {
+      throw new Error('missing outbox event');
+    }
+
+    const failed = await store.markOutboxFailed(first.id);
+    expect(failed?.status).toBe('FAILED');
+
+    const retried = await store.markOutboxSent(first.id);
+    expect(retried?.status).toBe('SENT');
+    expect(retried?.sentAt).toBeDefined();
+  });
 });

@@ -127,6 +127,7 @@
 **Status (current):**
 - Done:
   - Outbox worker entrypoint added for mark-sent loop step.
+  - Worker now processes pending rows per-event and marks sent/failed state explicitly.
 - Next:
   - Add transport publishing (Redis/queue), retries/backoff policy, and failure alerts.
 

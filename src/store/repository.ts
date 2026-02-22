@@ -32,6 +32,8 @@ export interface AppRepository {
 
   listOutbox(storeId?: string, status?: OutboxStatus): Promise<OutboxEvent[]>;
   publishOutbox(storeId?: string, limit?: number): Promise<OutboxPublishResult>;
+  markOutboxSent(eventId: number): Promise<OutboxEvent | undefined>;
+  markOutboxFailed(eventId: number): Promise<OutboxEvent | undefined>;
 
   getCallSession(callId: string): Promise<CallSession | undefined>;
   setCallSession(session: CallSession): Promise<void>;

@@ -164,6 +164,23 @@ export class MemoryStore implements AppRepository {
     return { publishedCount: selected.length, events: selected };
   }
 
+  async markOutboxSent(eventId: number): Promise<OutboxEvent | undefined> {
+    const event = this.outboxEvents.find((entry) => entry.id === eventId);
+    if (!event) return undefined;
+    event.status = 'SENT';
+    event.attempts += 1;
+    event.sentAt = new Date().toISOString();
+    return event;
+  }
+
+  async markOutboxFailed(eventId: number): Promise<OutboxEvent | undefined> {
+    const event = this.outboxEvents.find((entry) => entry.id === eventId);
+    if (!event) return undefined;
+    event.status = 'FAILED';
+    event.attempts += 1;
+    return event;
+  }
+
   async getCallSession(callId: string): Promise<CallSession | undefined> {
     return this.callSessions.get(callId);
   }

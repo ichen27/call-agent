@@ -16,6 +16,7 @@
 - Postgres migration scaffolding (`migrations/0001_init.sql`, `npm run migrate`).
 - Async Postgres repository implementation scaffold (`src/store/postgres.ts`) with transactional create/idempotency/event/outbox methods for upcoming runtime cutover.
 - Outbox worker entrypoint (`npm run worker:outbox`) for pending->sent flow in postgres mode.
+- Outbox publisher abstraction (`src/workers/publishers.ts`) with stdout transport placeholder.
 - Store factory selection layer (`src/store/factory.ts`) and tests for backend selection behavior (`tests/storeFactory.test.ts`).
 
 ### Changed
@@ -25,6 +26,7 @@
 - Health endpoint now includes backend metadata.
 - API request path, order service, and voice tool/state-machine flow now use async repository contracts.
 - `STORE_BACKEND=postgres` is now supported by the HTTP app runtime (with `DATABASE_URL`).
+- Outbox worker flow now marks each event as `SENT` or `FAILED` based on per-event publish result.
 
 ### Fixed
 
