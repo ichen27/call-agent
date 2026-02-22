@@ -27,6 +27,7 @@
 - Route-level auth integration tests (`tests/authRoutes.test.ts`) for `401`/`403`/optional-auth behavior.
 - Password hashing utility/tests (`src/auth/password.ts`, `tests/password.test.ts`) with PBKDF2 verification.
 - Staff user auth migration (`migrations/0003_staff_users_auth.sql`) for persistent credential storage.
+- Store-scope authorization checks for authenticated users on store/order event operations.
 
 ### Changed
 
@@ -41,6 +42,7 @@
 - Protected order/mode/menu routes now support RBAC enforcement (`STAFF`/`MANAGER`) with configurable `AUTH_REQUIRED` mode.
 - Auth enforcement defaults are now environment-aware: required outside local/test unless explicitly overridden.
 - Auth login flow now resolves users from repository storage (`staff_users` in Postgres) instead of in-memory plaintext credentials.
+- Authenticated requests are now constrained to their token store scope (`403` on cross-store access).
 
 ### Fixed
 

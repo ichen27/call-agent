@@ -11,6 +11,8 @@
   - If `AUTH_REQUIRED` is unset:
     - `NODE_ENV=development|test`: missing bearer token allowed on protected routes.
     - Other environments: protected routes enforce bearer token + role by default.
+- Token scope:
+  - If bearer auth is present, store-bound endpoints enforce token `store_id` scope and return `403` on mismatch.
 
 ### GET `/health`
 **Response**

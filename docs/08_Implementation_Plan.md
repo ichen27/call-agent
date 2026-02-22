@@ -31,8 +31,9 @@
   - Route-level auth integration tests added for required auth (`401`), role rejection (`403`), and optional auth mode.
   - Auth defaults hardened: non-local environments enforce auth by default unless explicitly disabled.
   - Login now uses persistent user lookup (`staff_users`) with PBKDF2 password hashes (memory + postgres adapters).
+  - Store-scoped token checks added for authenticated access to store/order event operations.
 - Next:
-  - Expand auth integration coverage to include telephony/internal endpoint policy and store-to-token scoping checks.
+  - Expand auth integration coverage to include telephony/internal endpoint policy.
   - Add manager/staff user bootstrap and rotation runbook for production credentials.
 
 ---

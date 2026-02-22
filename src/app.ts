@@ -77,6 +77,7 @@ export function createApp() {
 
   app.get('/api/stores/:storeId/menu', asyncRoute(async (req, res) => {
     const storeId = z.string().parse(req.params.storeId);
+    if (!allowStoreScope(req.auth?.storeId, storeId, res)) return;
     res.json({ items: await db.getMenu(storeId) });
   }));
 
@@ -93,6 +94,7 @@ export function createApp() {
     const body = z.object({ mode: modeSchema }).safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: body.error.flatten() });
     const storeId = z.string().parse(req.params.storeId);
+    if (!allowStoreScope(req.auth?.storeId, storeId, res)) return;
     const mode = await db.setStoreMode(storeId, body.data.mode as StoreMode);
     if (!mode) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'store not found' } });
     res.json({ mode });
@@ -166,6 +168,11 @@ export function createApp() {
     const body = z.object({ status: statusSchema }).safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: body.error.flatten() });
     const orderId = z.string().parse(req.params.orderId);
+    const existing = await db.getOrderById(orderId);
+    if (!existing) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'order not found' } });
+    }
+    if (!allowStoreScope(req.auth?.storeId, existing.storeId, res)) return;
     const actorId = req.auth?.userId ?? req.header('x-user-id') ?? 'staff';
     const order = await orderService.updateStatus(orderId, body.data.status as OrderStatus, actorId);
     res.json({ id: order.id, status: order.status });
@@ -175,6 +182,11 @@ export function createApp() {
     const body = z.object({ client_id: z.string().min(1) }).safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: body.error.flatten() });
     const orderId = z.string().parse(req.params.orderId);
+    const existing = await db.getOrderById(orderId);
+    if (!existing) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'order not found' } });
+    }
+    if (!allowStoreScope(req.auth?.storeId, existing.storeId, res)) return;
     await orderService.ackOrder(orderId, body.data.client_id);
     res.json({ acked: true });
   }));
@@ -182,6 +194,7 @@ export function createApp() {
   app.get('/api/stores/:storeId/events', asyncRoute(async (req, res) => {
     const since = Number(req.query.since_id ?? 0);
     const storeId = z.string().parse(req.params.storeId);
+    if (!allowStoreScope(req.auth?.storeId, storeId, res)) return;
     const events = await db.getEventsSince(storeId, Number.isNaN(since) ? 0 : since);
     const next = events.length ? events[events.length - 1]?.id : since;
     res.json({ events, next_since_id: next });
@@ -275,4 +288,17 @@ export function createApp() {
   app.use(errorMiddleware);
 
   return { app, db, orderService };
+}
+
+function allowStoreScope(authStoreId: string | undefined, targetStoreId: string, res: express.Response): boolean {
+  if (!authStoreId) {
+    return true;
+  }
+
+  if (authStoreId !== targetStoreId) {
+    res.status(403).json({ error: { code: 'FORBIDDEN', message: 'store scope mismatch' } });
+    return false;
+  }
+
+  return true;
 }

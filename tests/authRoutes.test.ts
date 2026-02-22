@@ -23,9 +23,9 @@ function buildOrderBody() {
   };
 }
 
-async function loginAndGetToken(app: ReturnType<typeof createApp>['app'], email: string) {
+async function loginAndGetToken(app: ReturnType<typeof createApp>['app'], email: string, storeId = 'store-1') {
   const response = await request(app).post('/api/auth/login').send({
-    store_id: 'store-1',
+    store_id: storeId,
     email,
     password: 'password123'
   });
@@ -87,5 +87,40 @@ describe('auth route enforcement', () => {
       .expect(201);
 
     await request(app).patch(`/api/orders/${created.body.id}`).send({ status: 'ACCEPTED' }).expect(200);
+  });
+
+  it('enforces store scoping for authenticated users', async () => {
+    process.env.AUTH_USERS_JSON = JSON.stringify([
+      {
+        userId: 'manager-1',
+        storeId: 'store-1',
+        email: 'manager@store.test',
+        role: 'MANAGER',
+        password: 'password123'
+      },
+      {
+        userId: 'manager-2',
+        storeId: 'store-2',
+        email: 'manager2@store.test',
+        role: 'MANAGER',
+        password: 'password123'
+      }
+    ]);
+
+    const { app } = createApp();
+    const store2Token = await loginAndGetToken(app, 'manager2@store.test', 'store-2');
+    const created = await request(app)
+      .post('/api/orders')
+      .set('Idempotency-Key', 'auth-store-scope-order')
+      .send(buildOrderBody())
+      .expect(201);
+
+    await request(app)
+      .patch(`/api/orders/${created.body.id}`)
+      .set('Authorization', `Bearer ${store2Token}`)
+      .send({ status: 'ACCEPTED' })
+      .expect(403);
+
+    await request(app).get('/api/stores/store-1/events').set('Authorization', `Bearer ${store2Token}`).expect(403);
   });
 });

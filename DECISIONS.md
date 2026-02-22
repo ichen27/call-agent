@@ -202,3 +202,20 @@
   - Local memory mode still supports configured users, but normalized into hashed form at startup.
 - Rollback:
   - Revert login lookup to config-seeded users while preserving JWT/RBAC route guards.
+
+## 2026-02-22 - Enforce Store Scope on Authenticated Route Access (ADR-0012)
+
+- Status: accepted
+- Context:
+  - Role checks alone allowed a valid token to call routes targeting another store.
+  - Multi-store safety requires store-bound access even before broader tenancy layers are introduced.
+- Decision:
+  - Add store-scope checks using token `storeId` on store and order-event operations.
+  - Return `403 FORBIDDEN` on authenticated cross-store access attempts.
+- Rationale:
+  - Prevents accidental or malicious cross-store operations with otherwise valid credentials.
+- Consequences:
+  - Existing clients must use tokens aligned with target store resources.
+  - Additional route coverage is needed as new store-bound endpoints are added.
+- Rollback:
+  - Disable store-scope checks while retaining role gates if rollout uncovers incompatible client assumptions.
