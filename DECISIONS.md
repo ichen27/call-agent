@@ -321,3 +321,45 @@
   - Slightly longer CI time in DB-enabled environments.
 - Rollback:
   - Keep repository integration tests as fallback if route suite becomes unstable in constrained environments.
+
+## 2026-02-22 - Add Launch-Control Flags, Runtime Rate Limits, and Non-Local Secret Gates (ADR-0016)
+
+- Status: accepted
+- Context:
+  - Launch and rollback docs require immediate disable controls for automation and safer abuse handling.
+  - Non-local deployments need predictable fail-fast behavior when critical secrets are missing.
+- Decision:
+  - Add env controls:
+    - `AGENT_ENABLED` (telephony automation gate)
+    - `ORDER_INTAKE_ENABLED` (order creation gate)
+  - Add in-memory per-IP rate limits for telephony inbound, auth login, and API order creation with deterministic `429 RATE_LIMITED` responses.
+  - Validate runtime security config at boot in non-local environments:
+    - reject default `JWT_SECRET` when auth is enforced
+    - require `INTERNAL_API_KEY`
+    - require `TELEPHONY_WEBHOOK_TOKEN` or `TELEPHONY_WEBHOOK_SECRET`
+- Rationale:
+  - Gives operations immediate rollback levers without code redeploy.
+  - Reduces abuse risk in MVP environments while preserving dependency constraints.
+- Consequences:
+  - Limits are process-local for MVP single-instance deployments.
+  - Non-local environments must provision required secrets before boot.
+- Rollback:
+  - Set flags back to enabled and relax secret requirements only if incident mitigation requires temporary permissive mode.
+
+## 2026-02-22 - Add Staff-Web Automated Test Baseline (ADR-0017)
+
+- Status: accepted
+- Context:
+  - Staff web lacked automated tests, leaving core workflow changes unguarded.
+  - Human approval allowed targeted frontend dependency additions.
+- Decision:
+  - Add component-test harness in `apps/staff-web` using Vitest + Testing Library.
+  - Add browser E2E scaffolding using Playwright in `apps/staff-web/e2e`.
+  - Extend root CI to include staff-web tests and build (`npm run ci:staff` via `npm run ci`).
+- Rationale:
+  - Establishes immediate regression checks for login/workflow surfaces with minimal tooling overhead.
+- Consequences:
+  - Slightly longer CI duration.
+  - Browser-level E2E coverage starts as scaffolding and should be expanded alongside workflow features.
+- Rollback:
+  - Remove frontend test scripts/deps and revert root CI wiring if maintenance overhead outweighs current MVP risk reduction.

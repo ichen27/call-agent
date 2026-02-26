@@ -1,6 +1,15 @@
 export type StoreMode = 'OPEN' | 'BUSY' | 'CLOSED';
 export type OrderStatus = 'NEW' | 'ACCEPTED' | 'IN_PROGRESS' | 'READY' | 'COMPLETED' | 'REJECTED' | 'CANCELED';
 
+export interface Store {
+  id: string;
+  name: string;
+  timezone: string;
+  publicPhone: string;
+  mode: StoreMode;
+  defaultPrepMins: number;
+}
+
 export interface MenuItem {
   id: string;
   storeId: string;
@@ -30,6 +39,8 @@ export interface Order {
   totalCents: number;
   notes?: string;
   callId?: string;
+  promisedTime?: string;
+  rejectReason?: string;
   createdAt: string;
   updatedAt: string;
   ackedClientIds: string[];
@@ -66,8 +77,9 @@ export interface CallSession {
   state: string;
   callerPhone: string;
   customerName?: string;
-  draftItems: Array<{ itemId: string; qty: number }>;
+  draftItems: Array<{ itemId: string; itemName: string; qty: number }>;
   pendingClarification?: string[];
+  clarificationAttempts?: number;
   createdOrderId?: string;
   handoff: boolean;
   endedAt?: string;

@@ -4,6 +4,16 @@
 
 ### Added
 
+- Store contract endpoint `GET /api/stores/:storeId` plus store-bound auth scope enforcement on order read routes.
+- Extended order status update payload with `reject_reason`, optional `note`, and optional `promised_time` validation.
+- Voice flow upgrades: full order readback before confirmation, two-attempt clarification policy, busy-mode prep messaging, and structured handoff summary events.
+- Staff UI workflow upgrades: order detail drawer, audit/event timeline, reject-with-reason form, and `tel:` call-customer action.
+- Staff UI realtime resilience improvements: persisted event cursor, reconnect catch-up, and polling fallback while websocket is down.
+- Outbox worker runtime modes (`once`, `loop`, `replay-dead-letter`) with graceful shutdown and dead-letter replay control endpoint.
+- Route-level abuse controls via in-memory rate limiting and deterministic `429 RATE_LIMITED` responses.
+- Non-local runtime security validation for critical secrets before app boot.
+- Frontend automation baseline in `apps/staff-web` with Vitest component tests and Playwright E2E scaffolding.
+
 - Core MVP backend service with Express routes for health, menu, store mode, orders, order events, and telephony webhooks.
 - Deterministic voice order state machine with controlled tool execution (`get_store_mode`, `validate_item`, `create_order`, `handoff`).
 - In-memory domain store for menu, store mode, call sessions, orders, idempotency keys, and append-only order events.
@@ -38,6 +48,11 @@
 - Postgres API integration test coverage for auth/order/status/events route behavior (`tests/postgresApi.integration.test.ts`).
 
 ### Changed
+
+- Root CI now includes backend checks plus staff-web test/build parity (`npm run ci`) and an explicit DB profile (`npm run ci:db`).
+- Health payload now exposes launch-control flag state (`agent_enabled`, `order_intake_enabled`).
+- Telephony and order-create flows now honor launch-control env toggles (`AGENT_ENABLED`, `ORDER_INTAKE_ENABLED`).
+- Structured logs now include generated request IDs and additional metric-style fields for key operations.
 
 - `AGENTS.md` now reflects repository truth, command hooks, task modes, and stop-and-ask gates for this codebase.
 - Storage usage in services is now interface-driven (`AppRepository`) instead of hard-coupled to `MemoryStore`, enabling cleaner Postgres cutover.

@@ -77,6 +77,12 @@ describeIfDb('Postgres API integration', () => {
       .expect(200);
 
     await request(app)
+      .patch(`/api/orders/${first.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'REJECTED', reject_reason: 'OUT_OF_STOCK', note: 'Sold out' })
+      .expect(400);
+
+    await request(app)
       .post(`/api/orders/${first.body.id}/ack`)
       .set('Authorization', `Bearer ${token}`)
       .send({ client_id: 'tablet-pg-1' })
@@ -87,6 +93,8 @@ describeIfDb('Postgres API integration', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
     expect(events.body.events.length).toBeGreaterThanOrEqual(3);
+
+    await request(app).get('/api/stores/store-1').set('Authorization', `Bearer ${token}`).expect(200);
   });
 
   it('rejects invalid store scope token access', async () => {

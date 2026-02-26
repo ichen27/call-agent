@@ -18,6 +18,11 @@
   - Set `INTERNAL_API_KEY` to require `x-internal-api-key` on `/api/internal/realtime/publish`.
   - Set `TELEPHONY_WEBHOOK_TOKEN` to require `x-telephony-token` on `/api/telephony/*`.
   - Set `TELEPHONY_WEBHOOK_SECRET` to require `x-telephony-signature` (`sha256=<hex-hmac-of-raw-body>`).
+- Launch controls:
+  - `AGENT_ENABLED=false` forces telephony to immediate handoff.
+  - `ORDER_INTAKE_ENABLED=false` returns `503 ORDER_INTAKE_DISABLED` for order creation.
+- Abuse controls:
+  - Public telephony/login/order-create routes are rate limited and return `429 RATE_LIMITED`.
 
 ### GET `/health`
 **Response**
@@ -219,10 +224,15 @@ Returns full order + items + events.
 ```json
 {
   "status": "ACCEPTED",
+  "reject_reason": "OUT_OF_STOCK",
   "promised_time": "2026-02-21T19:30:00-05:00",
   "note": "Extended due to rush"
 }
 ```
+
+Notes:
+- `reject_reason` is required when `status=REJECTED`.
+- Supported reject reasons: `OUT_OF_STOCK`, `KITCHEN_OVERLOADED`, `STORE_CLOSING`, `UNABLE_TO_FULFILL`.
 
 **Response**
 ```json
@@ -269,6 +279,14 @@ Returns outbox rows for inspection in local/dev environments.
 
 ### POST `/api/internal/outbox/publish`
 Marks pending outbox rows as sent.
+
+**Request**
+```json
+{ "store_id":"uuid", "limit": 100 }
+```
+
+### POST `/api/internal/outbox/replay`
+Moves dead-letter rows back to retry queue (`FAILED` + due now).
 
 **Request**
 ```json

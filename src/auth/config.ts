@@ -43,6 +43,11 @@ export function isAuthRequired(): boolean {
   return true;
 }
 
+export function isNonLocalEnv(): boolean {
+  const env = (process.env.NODE_ENV ?? 'development').toLowerCase();
+  return env !== 'development' && env !== 'test';
+}
+
 export function jwtSecret(): string {
   return process.env.JWT_SECRET ?? 'dev-insecure-secret';
 }
@@ -83,5 +88,26 @@ export function configuredUsers(): ConfiguredAuthUser[] {
     return normalized.length > 0 ? normalized : DEFAULT_USERS;
   } catch {
     return DEFAULT_USERS;
+  }
+}
+
+export function validateRuntimeSecurityConfig(): void {
+  if (!isNonLocalEnv()) {
+    return;
+  }
+
+  if (isAuthRequired() && jwtSecret() === 'dev-insecure-secret') {
+    throw new Error('JWT_SECRET is required in non-local environments when auth is enabled');
+  }
+
+  const internalApiKey = process.env.INTERNAL_API_KEY;
+  if (!internalApiKey || internalApiKey.trim().length < 8) {
+    throw new Error('INTERNAL_API_KEY is required in non-local environments');
+  }
+
+  const telephonyToken = process.env.TELEPHONY_WEBHOOK_TOKEN;
+  const telephonySecret = process.env.TELEPHONY_WEBHOOK_SECRET;
+  if ((!telephonyToken || telephonyToken.trim().length < 8) && (!telephonySecret || telephonySecret.trim().length < 8)) {
+    throw new Error('configure TELEPHONY_WEBHOOK_TOKEN or TELEPHONY_WEBHOOK_SECRET in non-local environments');
   }
 }

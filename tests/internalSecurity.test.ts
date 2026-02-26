@@ -19,9 +19,16 @@ describe('internal and telephony security', () => {
     const { app } = createApp();
 
     await request(app).get('/api/internal/outbox').expect(401);
+    await request(app).post('/api/internal/outbox/replay').send({}).expect(401);
 
     const authorized = await request(app).get('/api/internal/outbox').set('x-internal-api-key', 'internal-secret').expect(200);
     expect(Array.isArray(authorized.body.events)).toBe(true);
+    const replay = await request(app)
+      .post('/api/internal/outbox/replay')
+      .set('x-internal-api-key', 'internal-secret')
+      .send({ limit: 10 })
+      .expect(200);
+    expect(typeof replay.body.replayed_count).toBe('number');
   });
 
   it('enforces TELEPHONY_WEBHOOK_TOKEN on telephony endpoints when configured', async () => {
@@ -55,5 +62,38 @@ describe('internal and telephony security', () => {
       .set('x-telephony-signature', `sha256=${signature}`)
       .send(body)
       .expect(200);
+  });
+
+  it('rate limits telephony inbound requests deterministically', async () => {
+    process.env.RATE_LIMIT_WINDOW_MS = '60000';
+    process.env.RATE_LIMIT_TELEPHONY_MAX = '2';
+    const { app } = createApp();
+
+    await request(app)
+      .post('/api/telephony/inbound')
+      .send({ call_id: 'call-rate-1', store_id: 'store-1', from: '+15550001111', utterance: 'hello' })
+      .expect(200);
+    await request(app)
+      .post('/api/telephony/inbound')
+      .send({ call_id: 'call-rate-2', store_id: 'store-1', from: '+15550001111', utterance: 'hello' })
+      .expect(200);
+
+    const limited = await request(app)
+      .post('/api/telephony/inbound')
+      .send({ call_id: 'call-rate-3', store_id: 'store-1', from: '+15550001111', utterance: 'hello' })
+      .expect(429);
+
+    expect(limited.body.error.code).toBe('RATE_LIMITED');
+  });
+
+  it('fails fast in non-local runtime when required secrets are missing', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.AUTH_REQUIRED = 'true';
+    delete process.env.JWT_SECRET;
+    delete process.env.INTERNAL_API_KEY;
+    delete process.env.TELEPHONY_WEBHOOK_TOKEN;
+    delete process.env.TELEPHONY_WEBHOOK_SECRET;
+
+    expect(() => createApp()).toThrow(/JWT_SECRET is required/i);
   });
 });

@@ -13,15 +13,29 @@ const createOrderArgs = z.object({
 
 const validateItemArgs = z.object({ storeId: z.string(), query: z.string().min(1) });
 const storeModeArgs = z.object({ storeId: z.string() });
-const handoffArgs = z.object({ reason: z.string().min(1) });
+const handoffArgs = z.object({
+  storeId: z.string().min(1),
+  callId: z.string().min(1),
+  reason: z.string().min(1),
+  callerPhone: z.string().min(4),
+  customerName: z.string().optional(),
+  draftItems: z.array(z.object({ itemId: z.string(), itemName: z.string(), qty: z.number().int().positive() })).default([])
+});
 
 export type ToolName = 'get_store_mode' | 'validate_item' | 'create_order' | 'handoff';
 
 type ToolResult =
-  | { type: 'mode'; mode: 'OPEN' | 'BUSY' | 'CLOSED' }
+  | { type: 'mode'; mode: 'OPEN' | 'BUSY' | 'CLOSED'; defaultPrepMins: number }
   | { type: 'matches'; matches: Array<{ id: string; name: string; price: number }> }
   | { type: 'order_created'; orderId: string; orderNumber: number }
+  | { type: 'order_blocked'; reason: string }
   | { type: 'handoff'; reason: string };
+
+function isOrderIntakeEnabled(): boolean {
+  const raw = process.env.ORDER_INTAKE_ENABLED;
+  if (!raw) return true;
+  return raw.toLowerCase() !== 'false';
+}
 
 export class VoiceTools {
   private readonly allowed = new Set<ToolName>(['get_store_mode', 'validate_item', 'create_order', 'handoff']);
@@ -38,7 +52,12 @@ export class VoiceTools {
 
     if (action === 'get_store_mode') {
       const args = storeModeArgs.parse(rawArgs);
-      return { type: 'mode', mode: await this.db.getStoreMode(args.storeId) };
+      const store = await this.db.getStoreById(args.storeId);
+      return {
+        type: 'mode',
+        mode: store?.mode ?? (await this.db.getStoreMode(args.storeId)),
+        defaultPrepMins: store?.defaultPrepMins ?? 20
+      };
     }
 
     if (action === 'validate_item') {
@@ -51,6 +70,10 @@ export class VoiceTools {
     }
 
     if (action === 'create_order') {
+      if (!isOrderIntakeEnabled()) {
+        return { type: 'order_blocked', reason: 'order_intake_disabled' };
+      }
+
       const args = createOrderArgs.parse(rawArgs);
       const menu = await this.db.getMenu(args.storeId);
       const items: OrderItemInput[] = args.items.map((draft) => {
@@ -84,6 +107,13 @@ export class VoiceTools {
     }
 
     const args = handoffArgs.parse(rawArgs);
+    await this.db.appendStoreEvent(args.storeId, `call-${args.callId}`, 'CallHandoffRequested', {
+      callId: args.callId,
+      reason: args.reason,
+      callerPhone: args.callerPhone,
+      customerName: args.customerName,
+      draftItems: args.draftItems
+    });
     return { type: 'handoff', reason: args.reason };
   }
 }

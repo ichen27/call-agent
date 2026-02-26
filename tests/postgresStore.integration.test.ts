@@ -128,6 +128,36 @@ describeIfDb('PostgresStore integration', () => {
     expect(sent?.sentAt).toBeDefined();
   });
 
+  it('can replay dead-letter rows for retry', async () => {
+    const created = await store.createOrder({
+      storeId: 'store-1',
+      idempotencyKey: 'pg-idem-replay',
+      customerName: 'Chris',
+      customerPhone: '+15550004444',
+      items: [
+        {
+          itemId: 'item-burrito',
+          itemNameSnapshot: 'Chicken Burrito',
+          qty: 1,
+          basePriceCents: 1299,
+          modifiersSnapshotJson: [],
+          lineTotalCents: 1299
+        }
+      ],
+      totalCents: 1299
+    });
+
+    const pending = await store.listOutbox(created.storeId, 'PENDING');
+    const first = pending[0];
+    if (!first) {
+      throw new Error('missing outbox event');
+    }
+    await store.markOutboxDeadLetter(first.id);
+    const replayed = await store.replayDeadLetters(created.storeId, 10);
+    expect(replayed).toHaveLength(1);
+    expect(replayed[0]?.status).toBe('FAILED');
+  });
+
   it('loads auth users from persistent staff_users storage', async () => {
     const manager = await store.getAuthUserByEmail('store-1', 'manager@store.test');
     expect(manager).toBeDefined();

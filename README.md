@@ -65,6 +65,9 @@ Service endpoint protection (optional, recommended outside local):
 - `INTERNAL_API_KEY`: required in `x-internal-api-key` for `/api/internal/outbox*`.
 - `TELEPHONY_WEBHOOK_TOKEN`: required in `x-telephony-token` for `/api/telephony/*`.
 - `TELEPHONY_WEBHOOK_SECRET`: requires `x-telephony-signature` HMAC SHA-256 of raw request body.
+- Launch controls:
+  - `AGENT_ENABLED=false` to disable automated voice ordering and force staff handoff.
+  - `ORDER_INTAKE_ENABLED=false` to reject new order creation paths safely.
 
 ## Checks
 
@@ -73,6 +76,8 @@ npm run lint
 npm run typecheck
 npm test
 npm run build
+npm run ci
+npm run ci:db   # runs postgres integration suite when DATABASE_URL is set
 ```
 
 ## Staff Web App (MVP shell)
@@ -81,6 +86,8 @@ npm run build
 cd apps/staff-web
 npm install
 npm run dev
+npm run test
+npm run test:e2e # requires: npx playwright install
 ```
 
 Default dev proxy targets:
@@ -110,6 +117,10 @@ STORE_BACKEND=postgres DATABASE_URL=postgres://<user>:<pass>@<host>:5432/<db> np
 
 Outbox worker notes:
 - Worker now publishes due outbox events one-by-one and marks each as `SENT`, `FAILED`, or `DEAD_LETTER`.
+- Worker mode controls:
+  - `OUTBOX_MODE=once` (default) processes one batch then exits.
+  - `OUTBOX_MODE=loop` runs continuously with graceful shutdown on `SIGINT`/`SIGTERM`.
+  - `OUTBOX_MODE=replay-dead-letter` requeues dead-letter rows for retry.
 - For local failure simulation, set `OUTBOX_FAIL_EVENT_TYPE=<EventType>` before running `worker:outbox`.
 - Transport options:
   - `OUTBOX_PUBLISH_TRANSPORT=stdout` (default)
@@ -121,6 +132,7 @@ Outbox worker notes:
   - `OUTBOX_MAX_ATTEMPTS` (default `5`)
   - `OUTBOX_BASE_DELAY_MS` (default `1000`)
   - `OUTBOX_MAX_DELAY_MS` (default `60000`)
+  - `OUTBOX_POLL_INTERVAL_MS` (loop mode only; default `2000`)
 - Optional worker scope: `OUTBOX_STORE_ID=<store-id>` to process one store.
 
 Realtime gateway:

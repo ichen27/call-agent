@@ -32,7 +32,7 @@
 - [ ] Store mode + 86 toggles confirmed affecting agent behavior immediately
 - [ ] Idempotency verified with forced retries
 - [ ] Dashboards + alerts configured
-- [ ] Feature flags confirmed (agent_enabled, order_intake_enabled)
+- [ ] Feature flags confirmed (`AGENT_ENABLED`, `ORDER_INTAKE_ENABLED`)
 
 ---
 
@@ -44,7 +44,7 @@
 - Preserve existing order data
 
 ### Steps
-1. Flip feature flag `agent_enabled=false`
+1. Flip feature flag `AGENT_ENABLED=false`
    - Telephony routing forwards calls directly to staff line
    - Voice Service either transfers immediately or does not answer
 2. Keep Staff UI available for visibility/manual tracking
@@ -52,7 +52,7 @@
    - Staff UI uses polling fallback
    - Optional SMS fallback for new orders
 4. If Order Service unstable:
-   - Flip `order_intake_enabled=false` (agent cannot create orders)
+   - Flip `ORDER_INTAKE_ENABLED=false` (agent cannot create orders)
    - Force calls to transfer to staff
 
 ### Rollback validation

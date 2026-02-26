@@ -61,6 +61,13 @@
 - Staff workflow:
   - login → ack → accept → in progress → ready → completed
   - websocket disconnect/reconnect reflects latest order state after replay sync
+  - staff-web browser test coverage uses Playwright (`apps/staff-web/e2e/*`)
+
+---
+
+## Frontend Component Tests
+- Staff web login/error flow and critical interaction rendering use Vitest + Testing Library (`apps/staff-web/src/*.test.tsx`).
+- Realtime disconnect/reconnect fallback behavior and detail/reject workflows should be covered as UI tests evolve.
 
 ---
 

@@ -100,4 +100,36 @@ describe('memory store outbox and order detail behavior', () => {
     expect(retried?.status).toBe('SENT');
     expect(retried?.sentAt).toBeDefined();
   });
+
+  it('replays dead-letter events back into retry state', async () => {
+    const store = new MemoryStore();
+    await store.createOrder({
+      storeId: 'store-1',
+      idempotencyKey: 'idem-4',
+      customerName: 'Sam',
+      customerPhone: '+15550000003',
+      items: [
+        {
+          itemId: 'item-burrito',
+          itemNameSnapshot: 'Chicken Burrito',
+          qty: 1,
+          basePriceCents: 1299,
+          modifiersSnapshotJson: [],
+          lineTotalCents: 1299
+        }
+      ],
+      totalCents: 1299
+    });
+
+    const pending = await store.listOutbox('store-1', 'PENDING');
+    const first = pending[0];
+    if (!first) {
+      throw new Error('missing pending outbox event');
+    }
+    await store.markOutboxDeadLetter(first.id);
+
+    const replayed = await store.replayDeadLetters('store-1', 10);
+    expect(replayed).toHaveLength(1);
+    expect(replayed[0]?.status).toBe('FAILED');
+  });
 });

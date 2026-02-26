@@ -14,7 +14,6 @@ Purpose: ship production-quality changes that are correct, secure, tested, maint
 - Constraints: no new dependencies unless approved, preserve API behavior, preserve order idempotency guarantees, preserve telephony state-machine safety
 
 ### Source-of-truth docs
-
 - Product/scope: `docs/01_PRD.md`, `docs/02_User_Stories_MVP.md`
 - Architecture/data: `docs/03_System_Design_Architecture.md`, `docs/04_Data_Model_Schema_Indexes.md`
 - API contract: `docs/05_API_Spec.md`
@@ -25,6 +24,7 @@ Purpose: ship production-quality changes that are correct, secure, tested, maint
 - Auth operations: `docs/12_Auth_Operations_Runbook.md`
 - Change log: `CHANGELOG.md`
 - Architecture decisions: `DECISIONS.md`
+- Backlog: `BACKLOG.md`
 
 ### Repo discovery (do first on every task)
 
@@ -33,9 +33,23 @@ Before coding, confirm scope and risk by checking:
 - `README*`, `docs/`
 - Build/test config (`package.json`, `tsconfig.json`, `eslint.config.js`)
 - CI config (`.github/workflows/*` if present)
+- Backlog and tasks are listed in `BACKLOG.md` and new tasks or features or ideas go here
+- Any need for human input shall be implemented as a request in `REQUESTS.md`
 - Nearby implementation/tests in `src/` and `tests/`
 
 If this section diverges from repo reality, follow repo reality and update this file.
+
+---
+## Backlog and Requests Workflow
+The backlog is the authoritative plan. All implementation items must come from `BACKLOG.md`.
+
+Rules:
+- Only implement items in `BACKLOG.md` with `Status: READY` and `Approval: APPROVED`.
+- If information is missing or ambiguous, move the item to `TRIAGE` or `BLOCKED` and create a request in `REQUESTS.md`.
+- `REQUESTS.md` is the outlet for human input and the place to check for responses before continuing work that depends on human decisions.
+- New ideas must enter via `BACKLOG.md` (as IDEAS/RAW) and never be implemented directly.
+
+---
 
 ## 1) Mission & priorities
 

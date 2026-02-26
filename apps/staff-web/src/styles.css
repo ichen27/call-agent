@@ -28,6 +28,28 @@ header {
   flex-wrap: wrap;
 }
 
+.chip {
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  border: 1px solid #d1d5db;
+}
+
+.chip.connected {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.chip.connecting {
+  background: #fef9c3;
+  border-color: #fde047;
+}
+
+.chip.disconnected {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
 .controls {
   margin: 1rem 0;
   padding: 0.9rem;
@@ -47,6 +69,15 @@ header {
   border-radius: 12px;
   border: 1px solid #e5e7eb;
   padding: 0.8rem;
+}
+
+.badge {
+  background: #dcfce7;
+  color: #065f46;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.72rem;
 }
 
 .row {
@@ -75,6 +106,32 @@ select {
   border: 1px solid #d1d5db;
   border-radius: 8px;
   padding: 0.4rem;
+}
+
+.drawer {
+  margin-top: 1rem;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 0.8rem;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.call-link {
+  display: inline-block;
+  margin: 0.6rem 0;
+  color: #0f766e;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.info {
+  color: #065f46;
 }
 
 .login {

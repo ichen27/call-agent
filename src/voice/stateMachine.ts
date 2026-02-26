@@ -13,6 +13,27 @@ function extractQuantity(text: string): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 
+function buildOrderReadback(session: CallSession): string {
+  const itemSummary = session.draftItems
+    .map((item) => `${item.qty} ${item.qty > 1 ? 'x' : ''} ${item.itemName}`.trim())
+    .join(', ');
+  return `for ${session.customerName}, phone ${session.callerPhone}, items: ${itemSummary}`;
+}
+
+async function transferToStaff(session: CallSession, tools: VoiceTools, reason: string, response: string): Promise<StepResult> {
+  await tools.execute('handoff', {
+    storeId: session.storeId,
+    callId: session.callId,
+    reason,
+    callerPhone: session.callerPhone,
+    customerName: session.customerName,
+    draftItems: session.draftItems
+  });
+  session.state = 'HANDOFF';
+  session.handoff = true;
+  return { session, response };
+}
+
 export async function handleCallerUtterance(session: CallSession, utterance: string, tools: VoiceTools): Promise<StepResult> {
   const text = utterance.trim();
   const lc = text.toLowerCase();
@@ -26,24 +47,22 @@ export async function handleCallerUtterance(session: CallSession, utterance: str
   }
 
   if (lc.includes('staff') || lc.includes('representative') || lc.includes('human')) {
-    await tools.execute('handoff', { reason: 'caller_requested_staff' });
-    session.state = 'HANDOFF';
-    session.handoff = true;
-    return { session, response: 'I will transfer you to staff now.' };
+    return transferToStaff(session, tools, 'caller_requested_staff', 'I will transfer you to staff now.');
   }
 
   if (session.state === 'INTENT') {
     const modeResult = await tools.execute('get_store_mode', { storeId: session.storeId });
     if (modeResult.type === 'mode' && modeResult.mode === 'CLOSED') {
-      session.state = 'HANDOFF';
-      session.handoff = true;
-      return { session, response: 'The store is currently closed. I can transfer you to staff for help.' };
+      return transferToStaff(
+        session,
+        tools,
+        'store_closed',
+        'The store is currently closed. I can transfer you to staff for help.'
+      );
     }
 
     if (lc.includes('delivery')) {
-      session.state = 'HANDOFF';
-      session.handoff = true;
-      return { session, response: 'Delivery is not supported right now. I can transfer you to staff.' };
+      return transferToStaff(session, tools, 'delivery_not_supported', 'Delivery is not supported right now. I can transfer you to staff.');
     }
 
     if (lc.includes('hour') || lc.includes('info')) {
@@ -51,6 +70,11 @@ export async function handleCallerUtterance(session: CallSession, utterance: str
     }
 
     session.state = 'ORDER_NAME';
+    if (modeResult.type === 'mode' && modeResult.mode === 'BUSY') {
+      const busyMins = modeResult.defaultPrepMins + 10;
+      return { session, response: `We are in busy mode. Pickup times are currently about ${busyMins} minutes. Please tell me your name for the pickup order.` };
+    }
+
     return { session, response: 'Great. Please tell me your name for the pickup order.' };
   }
 
@@ -69,7 +93,10 @@ export async function handleCallerUtterance(session: CallSession, utterance: str
         return { session, response: 'I still need at least one item. What would you like?' };
       }
       session.state = 'ORDER_CONFIRM';
-      return { session, response: `Please confirm your order: ${session.draftItems.length} item(s). Say yes to place it.` };
+      return {
+        session,
+        response: `Please confirm your pickup order ${buildOrderReadback(session)}. Say yes to place it.`
+      };
     }
 
     const validation = await tools.execute('validate_item', { storeId: session.storeId, query: text });
@@ -79,6 +106,7 @@ export async function handleCallerUtterance(session: CallSession, utterance: str
 
     if (validation.matches.length > 1) {
       session.pendingClarification = validation.matches.map((item) => item.name);
+      session.clarificationAttempts = 0;
       session.state = 'ORDER_CLARIFY';
       return {
         session,
@@ -90,7 +118,7 @@ export async function handleCallerUtterance(session: CallSession, utterance: str
     if (!firstMatch) {
       return { session, response: 'I could not find that menu item. Please say the item name again.' };
     }
-    session.draftItems.push({ itemId: firstMatch.id, qty: extractQuantity(lc) });
+    session.draftItems.push({ itemId: firstMatch.id, itemName: firstMatch.name, qty: extractQuantity(lc) });
     return { session, response: 'Added. You can add another item or say done.' };
   }
 
@@ -98,15 +126,38 @@ export async function handleCallerUtterance(session: CallSession, utterance: str
     const options = session.pendingClarification ?? [];
     const selected = options.find((option) => option.toLowerCase().includes(lc) || lc.includes(option.toLowerCase()));
     if (!selected) {
-      session.state = 'HANDOFF';
-      session.handoff = true;
-      return { session, response: 'I still cannot resolve that item. I will transfer you to staff.' };
+      const failedAttempts = (session.clarificationAttempts ?? 0) + 1;
+      session.clarificationAttempts = failedAttempts;
+      if (failedAttempts >= 2) {
+        return transferToStaff(
+          session,
+          tools,
+          'clarification_failed',
+          'I still cannot resolve that item after two attempts. I will transfer you to staff.'
+        );
+      }
+      return { session, response: `Please choose one of: ${options.join(', ')}.` };
     }
+
     const validated = await tools.execute('validate_item', { storeId: session.storeId, query: selected });
-    if (validated.type === 'matches' && validated.matches[0]) {
-      session.draftItems.push({ itemId: validated.matches[0].id, qty: extractQuantity(lc) });
+    const matched = validated.type === 'matches' ? validated.matches[0] : undefined;
+    if (!matched) {
+      const failedAttempts = (session.clarificationAttempts ?? 0) + 1;
+      session.clarificationAttempts = failedAttempts;
+      if (failedAttempts >= 2) {
+        return transferToStaff(
+          session,
+          tools,
+          'clarification_failed',
+          'I still cannot resolve that item after two attempts. I will transfer you to staff.'
+        );
+      }
+      return { session, response: `Please choose one of: ${options.join(', ')}.` };
     }
+
+    session.draftItems.push({ itemId: matched.id, itemName: matched.name, qty: extractQuantity(lc) });
     delete session.pendingClarification;
+    delete session.clarificationAttempts;
     session.state = 'ORDER_ITEM';
     return { session, response: 'Added. You can add another item or say done.' };
   }
@@ -127,13 +178,15 @@ export async function handleCallerUtterance(session: CallSession, utterance: str
       callId: session.callId,
       customerName: session.customerName,
       customerPhone: session.callerPhone,
-      items: session.draftItems
+      items: session.draftItems.map((item) => ({ itemId: item.itemId, qty: item.qty }))
     });
 
+    if (created.type === 'order_blocked') {
+      return transferToStaff(session, tools, created.reason, 'Automated intake is currently disabled. I will transfer you to staff.');
+    }
+
     if (created.type !== 'order_created') {
-      session.state = 'HANDOFF';
-      session.handoff = true;
-      return { session, response: 'I could not place the order. I will transfer you to staff.' };
+      return transferToStaff(session, tools, 'order_create_failed', 'I could not place the order. I will transfer you to staff.');
     }
 
     session.createdOrderId = created.orderId;

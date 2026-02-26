@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 
 function buildOrderBody() {
@@ -22,6 +22,12 @@ function buildOrderBody() {
 }
 
 describe('orders API', () => {
+  const backupEnv = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...backupEnv };
+  });
+
   it('enforces idempotency key behavior', async () => {
     const { app } = createApp();
 
@@ -53,5 +59,29 @@ describe('orders API', () => {
       .patch(`/api/orders/${created.body.id}`)
       .send({ status: 'READY' })
       .expect(400);
+  });
+
+  it('blocks order creation when ORDER_INTAKE_ENABLED is false', async () => {
+    process.env.ORDER_INTAKE_ENABLED = 'false';
+    const { app } = createApp();
+
+    await request(app)
+      .post('/api/orders')
+      .set('Idempotency-Key', 'intake-disabled')
+      .send(buildOrderBody())
+      .expect(503);
+  });
+
+  it('transfers inbound calls immediately when AGENT_ENABLED is false', async () => {
+    process.env.AGENT_ENABLED = 'false';
+    const { app } = createApp();
+
+    const response = await request(app)
+      .post('/api/telephony/inbound')
+      .send({ call_id: 'agent-disabled-call', store_id: 'store-1', from: '+15559990000', utterance: 'hello' })
+      .expect(200);
+
+    expect(response.body.handoff).toBe(true);
+    expect(String(response.body.state)).toBe('HANDOFF');
   });
 });

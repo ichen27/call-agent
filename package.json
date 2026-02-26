@@ -14,7 +14,13 @@
     "test": "vitest run",
     "test:integration": "vitest run tests/postgresStore.integration.test.ts tests/postgresApi.integration.test.ts",
     "test:watch": "vitest",
-    "ci": "npm run lint && npm run typecheck && npm test && npm run build"
+    "staff:web:test": "npm --prefix apps/staff-web run test",
+    "staff:web:build": "npm --prefix apps/staff-web run build",
+    "staff:web:test:e2e": "npm --prefix apps/staff-web run test:e2e",
+    "ci:backend": "npm run lint && npm run typecheck && npm test && npm run build",
+    "ci:staff": "npm run staff:web:test && npm run staff:web:build",
+    "ci:db": "npm run test:integration",
+    "ci": "npm run ci:backend && npm run ci:staff"
   },
   "dependencies": {
     "@types/jsonwebtoken": "^9.0.10",

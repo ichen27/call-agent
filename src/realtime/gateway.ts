@@ -1,6 +1,7 @@
 import type { Duplex } from 'node:stream';
 import { createHash } from 'node:crypto';
 import type { AuthService } from '../auth/service.js';
+import { safeLog } from '../logger.js';
 
 export interface RealtimeEnvelope {
   kind: 'outbox_publish';
@@ -85,10 +86,20 @@ export class RealtimeGateway implements RealtimeFanout {
       if (bucket.size === 0) {
         this.clientsByStore.delete(storeId);
       }
+      safeLog('info', 'ws client disconnected', {
+        store_id: storeId,
+        metric: 'ws_connected_clients',
+        metric_value: this.connectedCount(storeId)
+      });
     };
 
     socket.on('close', cleanup);
     socket.on('error', cleanup);
+    safeLog('info', 'ws client connected', {
+      store_id: storeId,
+      metric: 'ws_connected_clients',
+      metric_value: this.connectedCount(storeId)
+    });
   }
 
   publish(event: RealtimeEnvelope): number {
@@ -102,6 +113,11 @@ export class RealtimeGateway implements RealtimeFanout {
         client.socket.write(frame);
       }
     }
+    safeLog('info', 'realtime publish delivered', {
+      store_id: event.store_id,
+      event_type: event.event_type,
+      delivered: clients.size
+    });
     return clients.size;
   }
 

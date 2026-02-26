@@ -1,5 +1,5 @@
-import type { CallSession, MenuItem, Order, OrderEvent, OrderStatus, OutboxEvent, OutboxStatus, StoreMode } from '../types.js';
-import type { AppRepository, CreateOrderInput, OutboxPublishResult } from './repository.js';
+import type { CallSession, MenuItem, Order, OrderEvent, OrderStatus, OutboxEvent, OutboxStatus, Store, StoreMode } from '../types.js';
+import type { AppRepository, CreateOrderInput, OutboxPublishResult, UpdateOrderStatusInput } from './repository.js';
 import { configuredUsers } from '../auth/config.js';
 import type { AuthCredentialRecord } from '../auth/types.js';
 
@@ -18,8 +18,18 @@ export class MemoryStore implements AppRepository {
   private eventSeq = 1;
   private outboxSeq = 1;
 
-  readonly stores = new Map<string, { id: string; mode: StoreMode; defaultPrepMins: number }>([
-    ['store-1', { id: 'store-1', mode: 'OPEN', defaultPrepMins: 20 }]
+  readonly stores = new Map<string, Store>([
+    [
+      'store-1',
+      {
+        id: 'store-1',
+        name: 'Downtown',
+        timezone: 'America/New_York',
+        publicPhone: '+15551231234',
+        mode: 'OPEN',
+        defaultPrepMins: 20
+      }
+    ]
   ]);
 
   readonly menuItems = new Map<string, MenuItem>([
@@ -35,6 +45,10 @@ export class MemoryStore implements AppRepository {
   private readonly authUsers = new Map<string, AuthCredentialRecord>(
     configuredUsers().map((user) => [`${user.storeId}:${user.email.toLowerCase()}`, user])
   );
+
+  async getStoreById(storeId: string): Promise<Store | undefined> {
+    return this.stores.get(storeId);
+  }
 
   async getMenu(storeId: string): Promise<MenuItem[]> {
     return [...this.menuItems.values()].filter((item) => item.storeId === storeId);
@@ -116,18 +130,33 @@ export class MemoryStore implements AppRepository {
     return this.events.filter((event) => event.orderId === orderId);
   }
 
-  async updateOrderStatus(orderId: string, nextStatus: OrderStatus, actorId: string): Promise<Order> {
+  async updateOrderStatus(orderId: string, nextStatus: OrderStatus, actorId: string, input?: UpdateOrderStatusInput): Promise<Order> {
     const order = this.orders.get(orderId);
     if (!order) throw new Error('order not found');
     const allowed = STATUS_TRANSITIONS[order.status];
     if (!allowed.includes(nextStatus)) {
       throw new Error(`invalid transition: ${order.status} -> ${nextStatus}`);
     }
+    if (nextStatus === 'REJECTED' && !input?.rejectReason) {
+      throw new Error('reject reason required');
+    }
     order.status = nextStatus;
     order.updatedAt = new Date().toISOString();
+    if (input?.note) {
+      order.notes = input.note;
+    }
+    if (input?.promisedTime) {
+      order.promisedTime = input.promisedTime;
+    }
+    if (input?.rejectReason) {
+      order.rejectReason = input.rejectReason;
+    }
     this.appendEvent(order.storeId, order.id, 'OrderStatusChanged', {
       actorId,
-      status: nextStatus
+      status: nextStatus,
+      ...(input?.rejectReason ? { rejectReason: input.rejectReason } : {}),
+      ...(input?.note ? { note: input.note } : {}),
+      ...(input?.promisedTime ? { promisedTime: input.promisedTime } : {})
     });
     return order;
   }
@@ -144,6 +173,10 @@ export class MemoryStore implements AppRepository {
 
   async getEventsSince(storeId: string, sinceId: number): Promise<OrderEvent[]> {
     return this.events.filter((event) => event.storeId === storeId && event.id > sinceId);
+  }
+
+  async appendStoreEvent(storeId: string, aggregateId: string, eventType: string, payload: Record<string, unknown>): Promise<OrderEvent> {
+    return this.appendEvent(storeId, aggregateId, eventType, payload);
   }
 
   async listOutbox(storeId?: string, status?: OutboxStatus): Promise<OutboxEvent[]> {
@@ -211,6 +244,18 @@ export class MemoryStore implements AppRepository {
     return event;
   }
 
+  async replayDeadLetters(storeId?: string, limit = 100): Promise<OutboxEvent[]> {
+    const selected = this.outboxEvents
+      .filter((event) => event.status === 'DEAD_LETTER' && (!storeId || event.storeId === storeId))
+      .slice(0, limit);
+    const now = new Date().toISOString();
+    for (const event of selected) {
+      event.status = 'FAILED';
+      event.nextAttemptAt = now;
+    }
+    return selected;
+  }
+
   async getCallSession(callId: string): Promise<CallSession | undefined> {
     return this.callSessions.get(callId);
   }
@@ -223,7 +268,7 @@ export class MemoryStore implements AppRepository {
     this.callSessions.set(session.callId, session);
   }
 
-  private appendEvent(storeId: string, orderId: string, eventType: string, payload: Record<string, unknown>): void {
+  private appendEvent(storeId: string, orderId: string, eventType: string, payload: Record<string, unknown>): OrderEvent {
     const event: OrderEvent = {
       id: this.eventSeq,
       storeId,
@@ -249,5 +294,6 @@ export class MemoryStore implements AppRepository {
 
     this.eventSeq += 1;
     this.outboxSeq += 1;
+    return event;
   }
 }

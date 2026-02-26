@@ -1,5 +1,5 @@
 import type { OrderItemInput, OrderStatus } from './types.js';
-import type { AppRepository } from './store/repository.js';
+import type { AppRepository, UpdateOrderStatusInput } from './store/repository.js';
 
 export interface CreateOrderCommand {
   storeId: string;
@@ -19,8 +19,8 @@ export class OrderService {
     return this.db.createOrder(command);
   }
 
-  updateStatus(orderId: string, status: OrderStatus, actorId: string) {
-    return this.db.updateOrderStatus(orderId, status, actorId);
+  updateStatus(orderId: string, status: OrderStatus, actorId: string, input?: UpdateOrderStatusInput) {
+    return this.db.updateOrderStatus(orderId, status, actorId, input);
   }
 
   ackOrder(orderId: string, clientId: string) {

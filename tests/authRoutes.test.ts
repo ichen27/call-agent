@@ -121,6 +121,38 @@ describe('auth route enforcement', () => {
       .send({ status: 'ACCEPTED' })
       .expect(403);
 
+    await request(app)
+      .get('/api/orders')
+      .query({ store_id: 'store-1' })
+      .set('Authorization', `Bearer ${store2Token}`)
+      .expect(403);
+
+    await request(app).get(`/api/orders/${created.body.id}`).set('Authorization', `Bearer ${store2Token}`).expect(403);
+
+    await request(app).get('/api/stores/store-1').set('Authorization', `Bearer ${store2Token}`).expect(403);
+
     await request(app).get('/api/stores/store-1/events').set('Authorization', `Bearer ${store2Token}`).expect(403);
+  });
+
+  it('requires reject reason when setting order status to REJECTED', async () => {
+    const { app } = createApp();
+    const staffToken = await loginAndGetToken(app, 'staff@store.test');
+    const created = await request(app)
+      .post('/api/orders')
+      .set('Idempotency-Key', 'reject-reason-order')
+      .send(buildOrderBody())
+      .expect(201);
+
+    await request(app)
+      .patch(`/api/orders/${created.body.id}`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ status: 'REJECTED' })
+      .expect(400);
+
+    await request(app)
+      .patch(`/api/orders/${created.body.id}`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ status: 'REJECTED', reject_reason: 'OUT_OF_STOCK', note: 'Item unavailable' })
+      .expect(200);
   });
 });

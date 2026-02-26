@@ -1,5 +1,5 @@
 import express from 'express';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { OrderService } from './orderService.js';
 import type { OrderStatus, StoreMode } from './types.js';
@@ -11,10 +11,12 @@ import { asyncRoute } from './http/asyncRoute.js';
 import { errorMiddleware } from './http/errorMiddleware.js';
 import { AuthService } from './auth/service.js';
 import { authenticateRequest, requireRole } from './auth/middleware.js';
+import { validateRuntimeSecurityConfig } from './auth/config.js';
 import type { RealtimeFanout } from './realtime/gateway.js';
 
 const statusSchema = z.enum(['NEW', 'ACCEPTED', 'IN_PROGRESS', 'READY', 'COMPLETED', 'REJECTED', 'CANCELED']);
 const modeSchema = z.enum(['OPEN', 'BUSY', 'CLOSED']);
+const rejectReasonSchema = z.enum(['OUT_OF_STOCK', 'KITCHEN_OVERLOADED', 'STORE_CLOSING', 'UNABLE_TO_FULFILL']);
 
 const createOrderSchema = z.object({
   store_id: z.string(),
@@ -38,17 +40,108 @@ const createOrderSchema = z.object({
   call_id: z.string().optional()
 });
 
+const patchOrderSchema = z
+  .object({
+    status: statusSchema,
+    reject_reason: rejectReasonSchema.optional(),
+    note: z.string().min(1).max(300).optional(),
+    promised_time: z.string().datetime({ offset: true }).optional()
+  })
+  .superRefine((data, ctx) => {
+    if (data.status === 'REJECTED' && !data.reject_reason) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'reject_reason is required when status is REJECTED',
+        path: ['reject_reason']
+      });
+    }
+  });
+
 interface CreateAppOptions {
   realtimeGateway?: RealtimeFanout;
 }
 
+interface LimiterOptions {
+  keyPrefix: string;
+  windowMs: number;
+  max: number;
+}
+
+function envFlagEnabled(name: string, defaultValue = true): boolean {
+  const raw = process.env[name];
+  if (raw === undefined) return defaultValue;
+  return raw.toLowerCase() !== 'false';
+}
+
+function isAgentEnabled(): boolean {
+  return envFlagEnabled('AGENT_ENABLED', true);
+}
+
+function isOrderIntakeEnabled(): boolean {
+  return envFlagEnabled('ORDER_INTAKE_ENABLED', true);
+}
+
+function readLimit(name: string, fallback: number): number {
+  const parsed = Number(process.env[name] ?? fallback);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function createRateLimiter(options: LimiterOptions): express.RequestHandler {
+  const buckets = new Map<string, { count: number; resetAt: number }>();
+  return (req, res, next) => {
+    const key = `${options.keyPrefix}:${req.ip}`;
+    const now = Date.now();
+    const current = buckets.get(key);
+    if (!current || current.resetAt <= now) {
+      buckets.set(key, { count: 1, resetAt: now + options.windowMs });
+      next();
+      return;
+    }
+
+    if (current.count >= options.max) {
+      const retryAfter = Math.ceil((current.resetAt - now) / 1000);
+      res.setHeader('retry-after', String(Math.max(retryAfter, 1)));
+      safeLog('warn', 'rate limit exceeded', {
+        request_id: req.requestId,
+        path: req.path,
+        method: req.method,
+        limiter: options.keyPrefix,
+        ip: req.ip
+      });
+      res.status(429).json({ error: { code: 'RATE_LIMITED', message: 'too many requests' } });
+      return;
+    }
+
+    current.count += 1;
+    next();
+  };
+}
+
 export function createApp(options: CreateAppOptions = {}) {
+  validateRuntimeSecurityConfig();
+
   const app = express();
   const { realtimeGateway } = options;
   const { repository: db, backend } = createRepository();
   const orderService = new OrderService(db);
   const voiceTools = new VoiceTools(db, orderService);
   const authService = new AuthService(db);
+
+  const loginLimiter = createRateLimiter({
+    keyPrefix: 'auth_login',
+    windowMs: readLimit('RATE_LIMIT_WINDOW_MS', 5 * 60 * 1000),
+    max: readLimit('RATE_LIMIT_LOGIN_MAX', 20)
+  });
+  const createOrderLimiter = createRateLimiter({
+    keyPrefix: 'order_create',
+    windowMs: readLimit('RATE_LIMIT_WINDOW_MS', 5 * 60 * 1000),
+    max: readLimit('RATE_LIMIT_ORDER_CREATE_MAX', 60)
+  });
+  const telephonyLimiter = createRateLimiter({
+    keyPrefix: 'telephony',
+    windowMs: readLimit('RATE_LIMIT_WINDOW_MS', 5 * 60 * 1000),
+    max: readLimit('RATE_LIMIT_TELEPHONY_MAX', 30)
+  });
 
   app.use(
     express.json({
@@ -57,13 +150,28 @@ export function createApp(options: CreateAppOptions = {}) {
       }
     })
   );
+
+  app.use((req, res, next) => {
+    const requestId = req.header('x-request-id') ?? randomUUID();
+    req.requestId = requestId;
+    res.setHeader('x-request-id', requestId);
+    next();
+  });
+
   app.use(authenticateRequest(authService));
 
   app.get('/health', (_req, res) => {
-    res.json({ ok: true, service: 'call-agent', backend, realtime_clients: realtimeGateway?.connectedCount() ?? 0 });
+    res.json({
+      ok: true,
+      service: 'call-agent',
+      backend,
+      realtime_clients: realtimeGateway?.connectedCount() ?? 0,
+      agent_enabled: isAgentEnabled(),
+      order_intake_enabled: isOrderIntakeEnabled()
+    });
   });
 
-  app.post('/api/auth/login', asyncRoute(async (req, res) => {
+  app.post('/api/auth/login', loginLimiter, asyncRoute(async (req, res) => {
     const parsed = z
       .object({
         store_id: z.string().min(1),
@@ -88,14 +196,33 @@ export function createApp(options: CreateAppOptions = {}) {
     res.json({ id: req.auth.userId, role: req.auth.role, store_id: req.auth.storeId, email: req.auth.email });
   }));
 
-  app.get('/api/stores/:storeId/menu', asyncRoute(async (req, res) => {
+  app.get('/api/stores/:storeId', requireRole('STAFF'), asyncRoute(async (req, res) => {
+    const storeId = z.string().parse(req.params.storeId);
+    if (!allowStoreScope(req.auth?.storeId, storeId, res)) return;
+
+    const store = await db.getStoreById(storeId);
+    if (!store) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'store not found' } });
+    }
+
+    res.json({
+      id: store.id,
+      name: store.name,
+      timezone: store.timezone,
+      public_phone: store.publicPhone,
+      mode: store.mode,
+      default_prep_mins: store.defaultPrepMins
+    });
+  }));
+
+  app.get('/api/stores/:storeId/menu', requireRole('STAFF'), asyncRoute(async (req, res) => {
     const storeId = z.string().parse(req.params.storeId);
     if (!allowStoreScope(req.auth?.storeId, storeId, res)) return;
     res.json({ items: await db.getMenu(storeId) });
   }));
 
   app.patch('/api/menu/items/:itemId/availability', requireRole('MANAGER'), asyncRoute(async (req, res) => {
-    const body = z.object({ is_available: z.boolean() }).safeParse(req.body);
+    const body = z.object({ is_available: z.boolean(), note: z.string().max(160).optional() }).safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: body.error.flatten() });
     const itemId = z.string().parse(req.params.itemId);
     const item = await db.setItemAvailability(itemId, body.data.is_available);
@@ -104,7 +231,7 @@ export function createApp(options: CreateAppOptions = {}) {
   }));
 
   app.patch('/api/stores/:storeId/mode', requireRole('MANAGER'), asyncRoute(async (req, res) => {
-    const body = z.object({ mode: modeSchema }).safeParse(req.body);
+    const body = z.object({ mode: modeSchema, reason: z.string().min(1).max(160).optional() }).safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: body.error.flatten() });
     const storeId = z.string().parse(req.params.storeId);
     if (!allowStoreScope(req.auth?.storeId, storeId, res)) return;
@@ -113,7 +240,11 @@ export function createApp(options: CreateAppOptions = {}) {
     res.json({ mode });
   }));
 
-  app.post('/api/orders', asyncRoute(async (req, res) => {
+  app.post('/api/orders', createOrderLimiter, asyncRoute(async (req, res) => {
+    if (!isOrderIntakeEnabled()) {
+      return res.status(503).json({ error: { code: 'ORDER_INTAKE_DISABLED', message: 'order intake disabled' } });
+    }
+
     const idempotencyKey = req.header('Idempotency-Key');
     if (!idempotencyKey) return res.status(400).json({ error: { code: 'MISSING_IDEMPOTENCY_KEY' } });
     const body = createOrderSchema.safeParse(req.body);
@@ -149,12 +280,20 @@ export function createApp(options: CreateAppOptions = {}) {
 
     const order = await orderService.createOrder(command);
 
-    safeLog('info', 'order created', { request_id: req.header('x-request-id'), order_id: order.id, store_id: order.storeId });
+    safeLog('info', 'order created', {
+      request_id: req.requestId,
+      order_id: order.id,
+      store_id: order.storeId,
+      metric: 'orders_created_total',
+      metric_value: 1
+    });
     res.status(201).json({ id: order.id, order_number: order.orderNumber, status: order.status, created_at: order.createdAt });
   }));
 
-  app.get('/api/orders', asyncRoute(async (req, res) => {
+  app.get('/api/orders', requireRole('STAFF'), asyncRoute(async (req, res) => {
     const storeId = z.string().parse(req.query.store_id);
+    if (!allowStoreScope(req.auth?.storeId, storeId, res)) return;
+
     const statuses =
       typeof req.query.status === 'string'
         ? req.query.status
@@ -167,18 +306,20 @@ export function createApp(options: CreateAppOptions = {}) {
     res.json({ orders, next_cursor: null });
   }));
 
-  app.get('/api/orders/:orderId', asyncRoute(async (req, res) => {
+  app.get('/api/orders/:orderId', requireRole('STAFF'), asyncRoute(async (req, res) => {
     const orderId = z.string().parse(req.params.orderId);
     const order = await db.getOrderById(orderId);
     if (!order) {
       return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'order not found' } });
     }
+    if (!allowStoreScope(req.auth?.storeId, order.storeId, res)) return;
+
     const events = await db.getEventsForOrder(order.id);
     res.json({ order, events });
   }));
 
   app.patch('/api/orders/:orderId', requireRole('STAFF'), asyncRoute(async (req, res) => {
-    const body = z.object({ status: statusSchema }).safeParse(req.body);
+    const body = patchOrderSchema.safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: body.error.flatten() });
     const orderId = z.string().parse(req.params.orderId);
     const existing = await db.getOrderById(orderId);
@@ -187,7 +328,12 @@ export function createApp(options: CreateAppOptions = {}) {
     }
     if (!allowStoreScope(req.auth?.storeId, existing.storeId, res)) return;
     const actorId = req.auth?.userId ?? req.header('x-user-id') ?? 'staff';
-    const order = await orderService.updateStatus(orderId, body.data.status as OrderStatus, actorId);
+    const updateInput = {
+      ...(body.data.reject_reason ? { rejectReason: body.data.reject_reason } : {}),
+      ...(body.data.note ? { note: body.data.note } : {}),
+      ...(body.data.promised_time ? { promisedTime: body.data.promised_time } : {})
+    };
+    const order = await orderService.updateStatus(orderId, body.data.status as OrderStatus, actorId, updateInput);
     res.json({ id: order.id, status: order.status });
   }));
 
@@ -204,7 +350,7 @@ export function createApp(options: CreateAppOptions = {}) {
     res.json({ acked: true });
   }));
 
-  app.get('/api/stores/:storeId/events', asyncRoute(async (req, res) => {
+  app.get('/api/stores/:storeId/events', requireRole('STAFF'), asyncRoute(async (req, res) => {
     const since = Number(req.query.since_id ?? 0);
     const storeId = z.string().parse(req.params.storeId);
     if (!allowStoreScope(req.auth?.storeId, storeId, res)) return;
@@ -241,6 +387,20 @@ export function createApp(options: CreateAppOptions = {}) {
     res.json(result);
   }));
 
+  app.post('/api/internal/outbox/replay', asyncRoute(async (req, res) => {
+    if (!allowServiceToken(req, res, process.env.INTERNAL_API_KEY, 'x-internal-api-key')) return;
+    const parsed = z
+      .object({
+        store_id: z.string().optional(),
+        limit: z.number().int().positive().max(1000).optional()
+      })
+      .safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    const replayed = await db.replayDeadLetters(parsed.data.store_id, parsed.data.limit ?? 100);
+    res.json({ replayed_count: replayed.length, events: replayed });
+  }));
+
   app.post('/api/internal/realtime/publish', asyncRoute(async (req, res) => {
     if (!allowServiceToken(req, res, process.env.INTERNAL_API_KEY, 'x-internal-api-key')) return;
     if (!realtimeGateway) {
@@ -263,10 +423,17 @@ export function createApp(options: CreateAppOptions = {}) {
 
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     const delivered = realtimeGateway.publish(parsed.data);
+    safeLog('info', 'realtime publish delivered', {
+      request_id: req.requestId,
+      store_id: parsed.data.store_id,
+      metric: 'ws_connected_clients',
+      metric_value: realtimeGateway.connectedCount(parsed.data.store_id),
+      delivered
+    });
     res.json({ delivered });
   }));
 
-  app.post('/api/telephony/inbound', asyncRoute(async (req, res) => {
+  app.post('/api/telephony/inbound', telephonyLimiter, asyncRoute(async (req, res) => {
     if (!allowTelephonyAccess(req, res)) return;
     const parsed = z
       .object({
@@ -278,6 +445,31 @@ export function createApp(options: CreateAppOptions = {}) {
       .safeParse(req.body);
 
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    if (!isAgentEnabled()) {
+      await db.appendStoreEvent(parsed.data.store_id, `call-${parsed.data.call_id}`, 'CallHandoffRequested', {
+        callId: parsed.data.call_id,
+        reason: 'agent_disabled',
+        callerPhone: parsed.data.from,
+        draftItems: []
+      });
+      const disabledSession = {
+        callId: parsed.data.call_id,
+        storeId: parsed.data.store_id,
+        state: 'HANDOFF',
+        callerPhone: parsed.data.from,
+        draftItems: [],
+        handoff: true
+      };
+      await db.setCallSession(disabledSession);
+      return res.json({
+        call_id: parsed.data.call_id,
+        state: 'HANDOFF',
+        response: 'Automated ordering is currently disabled. Please hold while I transfer you to staff.',
+        handoff: true,
+        created_order_id: null
+      });
+    }
 
     const existing = await db.getCallSession(parsed.data.call_id);
     const session =
@@ -295,6 +487,7 @@ export function createApp(options: CreateAppOptions = {}) {
     await db.setCallSession(step.session);
 
     safeLog('info', 'telephony inbound processed', {
+      request_id: req.requestId,
       call_id: step.session.callId,
       store_id: step.session.storeId,
       session_state: step.session.state,
@@ -310,7 +503,7 @@ export function createApp(options: CreateAppOptions = {}) {
     });
   }));
 
-  app.post('/api/telephony/status', asyncRoute(async (req, res) => {
+  app.post('/api/telephony/status', telephonyLimiter, asyncRoute(async (req, res) => {
     if (!allowTelephonyAccess(req, res)) return;
     const parsed = z
       .object({

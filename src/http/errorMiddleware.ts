@@ -22,7 +22,7 @@ export const errorMiddleware: ErrorRequestHandler = (err, req, res, _next) => {
   const mapped = classifyError(error);
 
   safeLog('error', 'request failed', {
-    request_id: req.header('x-request-id'),
+    request_id: req.requestId ?? req.header('x-request-id'),
     method: req.method,
     path: req.path,
     error_code: mapped.code,

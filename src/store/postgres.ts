@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
-import type { CallSession, MenuItem, Order, OrderEvent, OrderItemInput, OrderStatus, OutboxEvent, OutboxStatus, StoreMode } from '../types.js';
-import type { AppRepository, CreateOrderInput, OutboxPublishResult } from './repository.js';
+import type { CallSession, MenuItem, Order, OrderEvent, OrderItemInput, OrderStatus, OutboxEvent, OutboxStatus, Store, StoreMode } from '../types.js';
+import type { AppRepository, CreateOrderInput, OutboxPublishResult, UpdateOrderStatusInput } from './repository.js';
 import type { AuthCredentialRecord } from '../auth/types.js';
 
 const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
@@ -23,9 +23,20 @@ interface OrderRow extends QueryResultRow {
   customer_phone: string;
   total_cents: number;
   notes: string | null;
+  promised_time: string | null;
+  reject_reason: string | null;
   call_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface StoreRow extends QueryResultRow {
+  id: string;
+  name: string;
+  timezone: string;
+  public_phone: string;
+  mode: StoreMode;
+  default_prep_mins: number;
 }
 
 interface OrderItemRow extends QueryResultRow {
@@ -52,6 +63,25 @@ export class PostgresStore implements AppRepository {
 
   asyncHealthCheck(): Promise<unknown> {
     return this.pool.query('SELECT 1');
+  }
+
+  async getStoreById(storeId: string): Promise<Store | undefined> {
+    const result = await this.pool.query<StoreRow>(
+      `SELECT id, name, timezone, public_phone, mode, default_prep_mins
+       FROM stores
+       WHERE id = $1`,
+      [storeId]
+    );
+    const row = result.rows[0];
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      name: row.name,
+      timezone: row.timezone,
+      publicPhone: row.public_phone,
+      mode: row.mode,
+      defaultPrepMins: row.default_prep_mins
+    };
   }
 
   async getMenu(storeId: string): Promise<MenuItem[]> {
@@ -135,8 +165,8 @@ export class PostgresStore implements AppRepository {
     return this.getEventsForOrderAsync(orderId);
   }
 
-  updateOrderStatus(orderId: string, nextStatus: OrderStatus, actorId: string): Promise<Order> {
-    return this.updateOrderStatusAsync(orderId, nextStatus, actorId);
+  updateOrderStatus(orderId: string, nextStatus: OrderStatus, actorId: string, input?: UpdateOrderStatusInput): Promise<Order> {
+    return this.updateOrderStatusAsync(orderId, nextStatus, actorId, input);
   }
 
   ackOrder(orderId: string, clientId: string): Promise<boolean> {
@@ -145,6 +175,10 @@ export class PostgresStore implements AppRepository {
 
   getEventsSince(storeId: string, sinceId: number): Promise<OrderEvent[]> {
     return this.getEventsSinceAsync(storeId, sinceId);
+  }
+
+  appendStoreEvent(storeId: string, aggregateId: string, eventType: string, payload: Record<string, unknown>): Promise<OrderEvent> {
+    return this.appendStoreEventAsync(storeId, aggregateId, eventType, payload);
   }
 
   listOutbox(storeId?: string, status?: OutboxStatus): Promise<OutboxEvent[]> {
@@ -241,6 +275,53 @@ export class PostgresStore implements AppRepository {
       event.sentAt = String(row.sent_at);
     }
     return event;
+  }
+
+  async replayDeadLetters(storeId?: string, limit = 100): Promise<OutboxEvent[]> {
+    const values: unknown[] = [limit];
+    let whereSql = "WHERE status = 'DEAD_LETTER'";
+    if (storeId) {
+      values.push(storeId);
+      whereSql += ` AND store_id = $${values.length}`;
+    }
+
+    const selected = await this.pool.query(
+      `SELECT id
+       FROM outbox_events
+       ${whereSql}
+       ORDER BY id ASC
+       LIMIT $1`,
+      values
+    );
+    if (selected.rows.length === 0) {
+      return [];
+    }
+    const ids = selected.rows.map((row) => Number(row.id));
+    const updated = await this.pool.query(
+      `UPDATE outbox_events
+       SET status = 'FAILED', next_attempt_at = now()
+       WHERE id = ANY($1::bigint[])
+       RETURNING id, store_id, aggregate_type, aggregate_id, event_type, payload_json, status, attempts, created_at, next_attempt_at, sent_at`,
+      [ids]
+    );
+    return updated.rows.map((row) => {
+      const event: OutboxEvent = {
+        id: Number(row.id),
+        storeId: String(row.store_id),
+        aggregateType: 'ORDER',
+        aggregateId: String(row.aggregate_id),
+        eventType: String(row.event_type),
+        payload: row.payload_json as Record<string, unknown>,
+        status: row.status as OutboxStatus,
+        attempts: Number(row.attempts),
+        createdAt: String(row.created_at),
+        nextAttemptAt: String(row.next_attempt_at)
+      };
+      if (row.sent_at) {
+        event.sentAt = String(row.sent_at);
+      }
+      return event;
+    });
   }
 
   getCallSession(callId: string): Promise<CallSession | undefined> {
@@ -486,7 +567,12 @@ export class PostgresStore implements AppRepository {
     return { publishedCount: events.length, events };
   }
 
-  async updateOrderStatusAsync(orderId: string, nextStatus: OrderStatus, actorId: string): Promise<Order> {
+  async updateOrderStatusAsync(
+    orderId: string,
+    nextStatus: OrderStatus,
+    actorId: string,
+    input?: UpdateOrderStatusInput
+  ): Promise<Order> {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -499,17 +585,33 @@ export class PostgresStore implements AppRepository {
       if (!allowed.includes(nextStatus)) {
         throw new Error(`invalid transition: ${current.status} -> ${nextStatus}`);
       }
+      if (nextStatus === 'REJECTED' && !input?.rejectReason) {
+        throw new Error('reject reason required');
+      }
 
       const updatedRes = await client.query<OrderRow>(
-        'UPDATE orders SET status = $1, updated_at = now() WHERE id = $2 RETURNING *',
-        [nextStatus, orderId]
+        `UPDATE orders
+         SET status = $1,
+             notes = COALESCE($2, notes),
+             promised_time = COALESCE($3, promised_time),
+             reject_reason = COALESCE($4, reject_reason),
+             updated_at = now()
+         WHERE id = $5
+         RETURNING *`,
+        [nextStatus, input?.note ?? null, input?.promisedTime ?? null, input?.rejectReason ?? null, orderId]
       );
       const updated = updatedRes.rows[0];
       if (!updated) {
         throw new Error('order update failed');
       }
 
-      await this.appendEventAsync(client, updated.store_id, updated.id, 'OrderStatusChanged', { actorId, status: nextStatus });
+      await this.appendEventAsync(client, updated.store_id, updated.id, 'OrderStatusChanged', {
+        actorId,
+        status: nextStatus,
+        ...(input?.rejectReason ? { rejectReason: input.rejectReason } : {}),
+        ...(input?.note ? { note: input.note } : {}),
+        ...(input?.promisedTime ? { promisedTime: input.promisedTime } : {})
+      });
       await client.query('COMMIT');
 
       const [items, events] = await Promise.all([this.getOrderItemsAsync(orderId), this.getEventsForOrderAsync(orderId)]);
@@ -587,8 +689,8 @@ export class PostgresStore implements AppRepository {
 
   async upsertCallSessionAsync(session: CallSession): Promise<void> {
     await this.pool.query(
-      `INSERT INTO call_sessions (call_id, store_id, state, caller_phone, customer_name, draft_items_json, pending_clarification_json, created_order_id, handoff, ended_at)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10)
+      `INSERT INTO call_sessions (call_id, store_id, state, caller_phone, customer_name, draft_items_json, pending_clarification_json, clarification_attempts, created_order_id, handoff, ended_at)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11)
        ON CONFLICT (call_id) DO UPDATE SET
          store_id = EXCLUDED.store_id,
          state = EXCLUDED.state,
@@ -596,6 +698,7 @@ export class PostgresStore implements AppRepository {
          customer_name = EXCLUDED.customer_name,
          draft_items_json = EXCLUDED.draft_items_json,
          pending_clarification_json = EXCLUDED.pending_clarification_json,
+         clarification_attempts = EXCLUDED.clarification_attempts,
          created_order_id = EXCLUDED.created_order_id,
          handoff = EXCLUDED.handoff,
          ended_at = EXCLUDED.ended_at`,
@@ -607,6 +710,7 @@ export class PostgresStore implements AppRepository {
         session.customerName ?? null,
         JSON.stringify(session.draftItems),
         session.pendingClarification ? JSON.stringify(session.pendingClarification) : null,
+        session.clarificationAttempts ?? 0,
         session.createdOrderId ?? null,
         session.handoff,
         session.endedAt ?? null
@@ -616,7 +720,7 @@ export class PostgresStore implements AppRepository {
 
   async getCallSessionAsync(callId: string): Promise<CallSession | undefined> {
     const result = await this.pool.query(
-      `SELECT call_id, store_id, state, caller_phone, customer_name, draft_items_json, pending_clarification_json, created_order_id, handoff, ended_at
+      `SELECT call_id, store_id, state, caller_phone, customer_name, draft_items_json, pending_clarification_json, clarification_attempts, created_order_id, handoff, ended_at
        FROM call_sessions WHERE call_id = $1`,
       [callId]
     );
@@ -628,10 +732,11 @@ export class PostgresStore implements AppRepository {
       storeId: String(row.store_id),
       state: String(row.state),
       callerPhone: String(row.caller_phone),
-      draftItems: (row.draft_items_json as Array<{ itemId: string; qty: number }>) ?? [],
+      draftItems: (row.draft_items_json as Array<{ itemId: string; itemName: string; qty: number }>) ?? [],
       handoff: Boolean(row.handoff),
       ...(row.customer_name ? { customerName: String(row.customer_name) } : {}),
       ...(row.pending_clarification_json ? { pendingClarification: row.pending_clarification_json as string[] } : {}),
+      ...(typeof row.clarification_attempts === 'number' ? { clarificationAttempts: Number(row.clarification_attempts) } : {}),
       ...(row.created_order_id ? { createdOrderId: String(row.created_order_id) } : {}),
       ...(row.ended_at ? { endedAt: String(row.ended_at) } : {})
     };
@@ -675,10 +780,49 @@ export class PostgresStore implements AppRepository {
     if (row.notes) {
       order.notes = row.notes;
     }
+    if (row.promised_time) {
+      order.promisedTime = row.promised_time;
+    }
+    if (row.reject_reason) {
+      order.rejectReason = row.reject_reason;
+    }
     if (row.call_id) {
       order.callId = row.call_id;
     }
     return order;
+  }
+
+  private async appendStoreEventAsync(
+    storeId: string,
+    aggregateId: string,
+    eventType: string,
+    payload: Record<string, unknown>
+  ): Promise<OrderEvent> {
+    const result = await this.pool.query(
+      `INSERT INTO order_events (store_id, order_id, event_type, payload_json)
+       VALUES ($1, $2, $3, $4::jsonb)
+       RETURNING id, store_id, order_id, event_type, payload_json, created_at`,
+      [storeId, aggregateId, eventType, JSON.stringify(payload)]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      throw new Error('event insert failed');
+    }
+
+    await this.pool.query(
+      `INSERT INTO outbox_events (store_id, aggregate_type, aggregate_id, event_type, payload_json, status, attempts, next_attempt_at)
+       VALUES ($1, 'ORDER', $2, $3, $4::jsonb, 'PENDING', 0, now())`,
+      [storeId, aggregateId, eventType, JSON.stringify(payload)]
+    );
+
+    return {
+      id: Number(row.id),
+      storeId: String(row.store_id),
+      orderId: String(row.order_id),
+      eventType: String(row.event_type),
+      payload: row.payload_json as Record<string, unknown>,
+      createdAt: String(row.created_at)
+    };
   }
 
   private async appendEventAsync(client: PoolClient, storeId: string, orderId: string, eventType: string, payload: Record<string, unknown>): Promise<void> {
